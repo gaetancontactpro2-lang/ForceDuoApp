@@ -20,6 +20,23 @@ extraction.
 
 La suite de ce document décrit la méthode 2. La méthode 1 est expliquée dans `extraction_navigateur.html`.
 
+## Assembler tous les jours en un seul fichier
+
+Une fois l'extraction terminée (ZIP téléchargé avec la méthode 1, ou dossier `extractions` rempli
+par la méthode 2), double-clic sur `5_assembler.bat`. Aucun module à installer, Python suffit.
+
+- Il prend tout seul le ZIP `Mise_au_mille_..._au_....zip` le plus récent (dossier du script,
+  Téléchargements ou Bureau), sinon le dossier `extractions`. On peut aussi faire glisser le ZIP
+  sur `5_assembler.bat`.
+- Il crée le dossier `assemblage` avec :
+  - `Mise_au_mille_complet_<début>_au_<fin>.xlsx` : **un seul tableau**, une seule ligne de titres,
+    toutes les lignes de tous les jours à la suite, et une première colonne **Date programme** ;
+  - `fichiers_avec_date\` : chaque fichier journalier avec cette même colonne ajoutée.
+- La date vient du nom de chaque fichier. Les colonnes sont alignées d'après leur titre : si une
+  colonne apparaît en cours de période, elle est ajoutée en fin de tableau et signalée.
+- Si le tableau de l'appli contient des lignes de regroupement ou de total, elles sont reprises
+  telles quelles, avec leur date.
+
 ## Mise en route (Windows)
 
 1. **Une seule fois** : double-clic sur `1_installer.bat` (installe le module Python `playwright`).
