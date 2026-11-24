@@ -15,16 +15,22 @@ extraction.
 
 1. **Une seule fois** : double-clic sur `1_installer.bat` (installe le module Python `playwright`).
 2. **Essai** : double-clic sur `2_test.bat`. Le bot traite seulement les 5 derniers jours.
-   - Une fenêtre Edge s'ouvre. Connecte-toi si l'appli le demande, puis appuie sur Entrée
-     dans la fenêtre noire.
-   - Le bot entoure en rouge le champ date et le bouton d'extraction qu'il a trouvés et
-     demande confirmation. S'il se trompe (ou ne trouve rien), réponds `n` : un bandeau rouge
-     en bas de la page te demande alors de cliquer toi-même sur le champ date, puis sur le
-     bouton. Ces clics servent seulement à lui montrer les éléments, rien n'est déclenché.
+   **Tout se passe dans la fenêtre Edge qui s'ouvre**, pas dans la fenêtre noire :
+   - Connecte-toi si l'appli le demande. Le bot attend tout seul que la page « Mise au mille »
+     soit affichée.
+   - Il entoure en rouge le champ date et le bouton d'extraction, et un bandeau rouge en bas
+     de la page demande « Est-ce correct ? ». Clique sur **Oui, lancer**.
+   - S'il se trompe, clique sur **Non, je vais les montrer** : le bandeau te demande alors de
+     cliquer toi-même sur le champ date, puis sur le bouton. Ces clics servent seulement à lui
+     montrer les éléments, rien n'est déclenché.
+   - Pendant le traitement, une petite étiquette verte en bas à droite indique l'avancement.
+     Quand c'est fini, Edge se ferme et le bilan s'affiche dans la fenêtre noire.
    - Ouvre deux ou trois fichiers du dossier `extractions` pour vérifier que chaque fichier
      contient bien le programme du jour indiqué dans son nom.
 3. **Extraction complète** : double-clic sur `3_lancer_extraction.bat`
-   (du 1er juillet 2025 à aujourd'hui). Laisse la fenêtre Edge ouverte pendant le traitement.
+   (du 1er juillet 2025 à aujourd'hui). Ne ferme pas la fenêtre Edge pendant le traitement.
+
+Les bandeaux jaunes d'Edge du type « contrôlé par un logiciel de test automatisé » sont normaux.
 
 ## À savoir
 
@@ -64,10 +70,14 @@ python extraction.py --diagnostic                           décrire la page san
 
 ## En cas de problème
 
+- **Dans tous les cas** : le fichier `journal.log` du dossier contient tout ce que le bot a fait.
+  C'est le fichier à envoyer pour comprendre un blocage.
+- **Edge s'ouvre mais il ne se passe rien, puis il se referme** : le PC interdit de piloter Edge
+  (politique de l'entreprise). Le bot l'indique dans la fenêtre noire. Lance alors
+  `4_installer_chromium.bat` : il télécharge un navigateur à part, réservé au bot, puis relance
+  `2_test.bat`.
 - **Le bot n'arrive pas à régler la date ou s'arrête** : il crée un dossier `diagnostic`.
   Le fichier `diagnostic\elements.txt` (liste des champs et boutons de la page) suffit en
   général pour l'ajuster.
 - **`pip` ne peut rien télécharger** (proxy d'entreprise) : il faut installer le module
   `playwright` par le moyen habituel de l'entreprise.
-- **Edge refuse de s'ouvrir** (pilotage bloqué par la politique de l'entreprise) :
-  `python -m playwright install chromium`, puis mettre `"navigateur": "chromium"` dans `config.json`.

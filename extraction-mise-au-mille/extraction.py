@@ -81,6 +81,7 @@ DEFAUTS = {
     "chemin_navigateur": "",
 }
 
+VERSION = "3"
 ERREURS_DE_SUITE_MAX = 5
 IDENTIQUES_MAX = 4
 
@@ -194,7 +195,7 @@ JS_BOT = r"""
   }
 
   function scoreExport(el) {
-    if (!visible(el)) return 0;
+    if (!visible(el) || el.closest('[data-bot-barre]')) return 0;
     const t = indicesBouton(el);
     let s = 0;
     if (/extraction|extraire|export/.test(t)) s += 50;
@@ -225,21 +226,66 @@ JS_BOT = r"""
     return null;
   }
 
+  // ---- bandeaux du bot (en bas de la page) --------------------------------
+  function creerBarre(message, role) {
+    document.querySelectorAll('[data-bot-barre="' + role + '"]').forEach(b => b.remove());
+    const barre = document.createElement('div');
+    barre.setAttribute('data-bot-barre', role);
+    barre.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:2147483647;background:#b71c1c;' +
+      'color:#fff;font:bold 17px Arial,sans-serif;padding:14px;text-align:center;box-shadow:0 -2px 8px rgba(0,0,0,.5)';
+    const texte = document.createElement('span');
+    texte.textContent = message;
+    barre.appendChild(texte);
+    const bouton = (libelle, action) => {
+      const b = document.createElement('button');
+      b.textContent = libelle;
+      b.setAttribute('data-bot-bouton', '1');
+      b.style.cssText = 'margin-left:16px;font:bold 15px Arial,sans-serif;padding:6px 14px;cursor:pointer';
+      b.addEventListener('click', action);
+      barre.appendChild(b);
+    };
+    document.documentElement.appendChild(barre);
+    return {barre, texte, bouton};
+  }
+
+  // Question posee dans la page : renvoie le rang du bouton clique.
+  function confirmer(message, libelles) {
+    return new Promise(resolve => {
+      const b = creerBarre(message, 'question');
+      libelles.forEach((libelle, i) => b.bouton(libelle, () => { b.barre.remove(); resolve(i); }));
+    });
+  }
+
+  // Bandeau d'attente non bloquant : renvoie true une fois son bouton clique.
+  function attente(message, libelle) {
+    if (window.__botClic) { window.__botClic = false; finAttente(); return true; }
+    const existante = document.querySelector('[data-bot-barre="attente"]');
+    if (!existante || existante.firstChild.textContent !== message)
+      creerBarre(message, 'attente').bouton(libelle, () => { window.__botClic = true; });
+    return false;
+  }
+  function finAttente() {
+    document.querySelectorAll('[data-bot-barre="attente"]').forEach(b => b.remove());
+  }
+
+  // Petite ligne d'avancement, qui ne gene pas les clics.
+  function statut(message) {
+    let ligne = document.querySelector('[data-bot-barre="statut"]');
+    if (!message) { if (ligne) ligne.remove(); return; }
+    if (!ligne) {
+      ligne = document.createElement('div');
+      ligne.setAttribute('data-bot-barre', 'statut');
+      ligne.style.cssText = 'position:fixed;right:8px;bottom:8px;z-index:2147483647;background:rgba(27,94,32,.92);' +
+        'color:#fff;font:bold 13px Arial,sans-serif;padding:6px 12px;border-radius:4px;pointer-events:none';
+      document.documentElement.appendChild(ligne);
+    }
+    ligne.textContent = message;
+  }
+
   function choisir(message, optionnel, genre) {
     return new Promise(resolve => {
-      const barre = document.createElement('div');
-      barre.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:2147483647;background:#b71c1c;' +
-        'color:#fff;font:bold 17px Arial,sans-serif;padding:14px;text-align:center;box-shadow:0 -2px 8px rgba(0,0,0,.5)';
-      const texte = document.createElement('span');
-      texte.textContent = message;
-      barre.appendChild(texte);
-      const ajouterBouton = (libelle, valeur) => {
-        const b = document.createElement('button');
-        b.textContent = libelle;
-        b.style.cssText = 'margin-left:16px;font:bold 15px Arial,sans-serif;padding:6px 14px;cursor:pointer';
-        b.addEventListener('click', () => fin(valeur));
-        barre.appendChild(b);
-      };
+      const {barre, texte, bouton: ajouter} = creerBarre(message, 'question');
+      const ajouterBouton = (libelle, valeur) => ajouter(libelle, () => fin(valeur));
       if (optionnel) ajouterBouton("Il n'y en a pas : passer", null);
       ajouterBouton('Abandonner', {abandon: true});
 
@@ -268,7 +314,6 @@ JS_BOT = r"""
       };
       TYPES.forEach(t => document.addEventListener(t, bloque, true));
       document.addEventListener('mousemove', survol, true);
-      document.documentElement.appendChild(barre);
     });
   }
 
@@ -332,7 +377,7 @@ JS_BOT = r"""
   function inventaire() {
     const lignes = [];
     document.querySelectorAll('input, select, textarea, ' + BOUTONS).forEach(el => {
-      if (!visible(el)) return;
+      if (!visible(el) || el.closest('[data-bot-barre]')) return;
       const attrs = Array.from(el.attributes)
         .filter(a => !/^(style|value|d|src|href)$/.test(a.name))
         .map(a => a.name + '=' + q(a.value.slice(0, 80))).join(' ');
@@ -342,7 +387,8 @@ JS_BOT = r"""
     return lignes;
   }
 
-  window.__bot = {trouverDate, trouverExport, choisir, inventaire, dxValeur, dxViserJour, dxTableau};
+  window.__bot = {trouverDate, trouverExport, choisir, confirmer, attente, finAttente, statut, inventaire,
+                  dxValeur, dxViserJour, dxTableau};
 })();
 """
 
@@ -366,24 +412,6 @@ def journal(message: str) -> None:
 def log(message: str = "") -> None:
     print(message, flush=True)
     journal(message)
-
-
-def oui(question: str) -> bool:
-    journal("QUESTION " + question)
-    try:
-        reponse = input(question + " [O/n] ").strip().lower()
-    except EOFError:
-        reponse = ""
-    journal("REPONSE " + reponse)
-    return reponse in ("", "o", "oui", "y", "yes")
-
-
-def pause_entree(message: str) -> None:
-    journal("PAUSE " + message)
-    try:
-        input(message)
-    except EOFError:
-        pass
 
 
 def lire_jour(texte: str) -> date:
@@ -562,6 +590,29 @@ def attendre_calme(page, reseau: Reseau, calme: float = 0.6, maxi: float = 30.0)
 # --------------------------------------------------------------------------
 # Navigateur
 # --------------------------------------------------------------------------
+NOMS_NAVIGATEURS = {"msedge": "Edge", "chrome": "Chrome", "chromium": "Chromium (celui de Playwright)"}
+
+
+def pilotage_interdit(canal: str) -> bool:
+    """Vrai si la politique Windows du PC interdit de piloter ce navigateur (RemoteDebuggingAllowed = 0)."""
+    cle = {"msedge": r"SOFTWARE\Policies\Microsoft\Edge", "chrome": r"SOFTWARE\Policies\Google\Chrome"}.get(canal)
+    if not cle or sys.platform != "win32":
+        return False
+    try:
+        import winreg
+
+        for racine in (winreg.HKEY_LOCAL_MACHINE, winreg.HKEY_CURRENT_USER):
+            try:
+                with winreg.OpenKey(racine, cle) as k:
+                    if winreg.QueryValueEx(k, "RemoteDebuggingAllowed")[0] == 0:
+                        return True
+            except OSError:
+                pass
+    except Exception:
+        pass
+    return False
+
+
 def ouvrir_navigateur(p, cfg: dict):
     hote = urlparse(cfg["url"]).hostname or ""
     arguments = ["--start-maximized"]
@@ -569,14 +620,21 @@ def ouvrir_navigateur(p, cfg: dict):
         # Connexion automatique avec la session Windows (SSO) pour ce serveur.
         arguments.append(f"--auth-server-allowlist={hote}")
     canaux = [cfg["navigateur"]] + [c for c in ("msedge", "chrome", "chromium") if c != cfg["navigateur"]]
-    echecs = []
+    echecs, bloque = [], False
     for canal in canaux:
+        nom = NOMS_NAVIGATEURS.get(canal, canal)
+        if not cfg["chemin_navigateur"] and pilotage_interdit(canal):
+            bloque = True
+            echecs.append(f"  - {nom} : pilotage interdit par la politique du PC (RemoteDebuggingAllowed = 0)")
+            log(f"{nom} : la politique du PC interdit de le piloter, j'essaie un autre navigateur.")
+            continue
         options = dict(
             user_data_dir=str(ICI / "profil_navigateur" / canal),
             headless=bool(cfg["invisible"]),
             accept_downloads=True,
             no_viewport=True,
             args=arguments,
+            timeout=60000,
             # Garde le bac a sable du navigateur actif : sans cela Playwright ajoute --no-sandbox
             # (bandeau d'avertissement dans Edge). Seul un lancement en root sous Linux l'exige.
             chromium_sandbox=not (hasattr(os, "geteuid") and os.geteuid() == 0),
@@ -585,17 +643,28 @@ def ouvrir_navigateur(p, cfg: dict):
             options["executable_path"] = cfg["chemin_navigateur"]
         elif canal != "chromium":
             options["channel"] = canal
+        log(f"Ouverture du navigateur {nom}...")
         try:
             contexte = p.chromium.launch_persistent_context(**options)
-            journal(f"navigateur ouvert : {canal}")
-            return contexte
         except ErreurPlaywright as e:
-            echecs.append(f"  - {canal} : {str(e).splitlines()[0]}")
+            raison = str(e).splitlines()[0]
+            journal(f"echec {canal} : {e}")
+            if "Timeout" in raison:
+                bloque = True
+                raison = "il s'ouvre mais ne repond pas au bot (pilotage sans doute bloque par la politique du PC)"
+            elif "Executable doesn't exist" in str(e) or "is not found" in str(e) or "not installed" in str(e):
+                raison = "pas installe"
+            echecs.append(f"  - {nom} : {raison}")
+            continue
+        if canal != cfg["navigateur"]:
+            cfg["navigateur"] = canal  # on s'en souvient pour les prochains lancements
+            enregistrer_config(cfg)
+        return contexte
     raise ArretBot(
-        "Impossible d'ouvrir un navigateur :\n" + "\n".join(echecs) + "\n"
-        "Si Edge est bloque par la politique de l'entreprise, essaie :\n"
-        "  python -m playwright install chromium\n"
-        'puis mets "navigateur": "chromium" dans config.json.'
+        "Impossible de piloter un navigateur :\n" + "\n".join(echecs) + "\n"
+        + ("Le PC bloque le pilotage de son navigateur. Solution : lance 4_installer_chromium.bat\n"
+           "(il telecharge un navigateur a part, reserve au bot), puis relance le bot.\n" if bloque else "")
+        + "Si ca ne marche toujours pas, envoie le fichier journal.log."
     )
 
 
@@ -633,7 +702,11 @@ def selecteur_unique(page, description):
 def entourer(page, selecteur: str, contour: str) -> None:
     try:
         page.locator(selecteur).first.evaluate(
-            "(e, c) => { if (c) e.scrollIntoView({block: 'center'}); e.style.outline = c; }", contour
+            """(e, c) => {
+                const cible = e.closest('.dx-datebox') || e;  // le cadre d'un dxDateBox, sinon le contour est rogne
+                if (c) cible.scrollIntoView({block: 'center'});
+                cible.style.outline = c;
+            }""", contour
         )
     except ErreurPlaywright:
         pass
@@ -658,40 +731,97 @@ def designer(page, message: str, optionnel: bool, genre: str):
         log("   Je n'arrive pas a identifier cet element de facon sure, recommence.")
 
 
-def reperer_elements(page, cfg: dict) -> None:
-    """Trouve le champ date et le bouton d'extraction, puis les memorise."""
-    log("Recherche du champ date et du bouton d'extraction dans la page...")
-    page.evaluate(JS_BOT)
-    champ = page.evaluate("() => window.__bot.trouverDate()")
-    bouton = page.evaluate("() => window.__bot.trouverExport()")
-    sel_date, sel_export, sel_valider = selecteur_unique(page, champ), selecteur_unique(page, bouton), ""
-
-    if sel_date and sel_export:
-        entourer(page, sel_date, "4px solid #ff1744")
-        entourer(page, sel_export, "4px solid #ff1744")
-        log(f"  Champ date          : {champ['apercu']}")
-        log(f"  Bouton d'extraction : {bouton['apercu']}")
-        log("Ces deux elements sont entoures en ROUGE dans la fenetre du navigateur.")
-        correct = oui("Est-ce bien le champ date et le bouton d'extraction Excel ?")
-        entourer(page, sel_date, "")
-        entourer(page, sel_export, "")
-        if not correct:
-            sel_date = sel_export = None
-
-    if not (sel_date and sel_export):
-        log("")
-        log("Montre-moi les elements : regarde la fenetre du navigateur et suis les")
-        log("consignes du bandeau rouge en bas de la page (rien ne sera declenche).")
-        sel_date = designer(page, "1/3 - Clique sur le CHAMP DATE (la case ou la date est affichee).", False, "date")
-        sel_export = designer(page, "2/3 - Clique sur le BOUTON D'EXTRACTION EXCEL (aucune extraction ne sera lancee).",
-                              False, "bouton")
-        sel_valider = designer(
-            page, "3/3 - S'il faut cliquer sur un bouton APRES avoir change la date (Rechercher, Valider...), clique dessus.",
-            True, "bouton")
-
+def reperage_manuel(page, cfg: dict) -> None:
+    """L'utilisateur montre a la souris le champ date et le bouton d'extraction."""
+    log("Reperage a la souris : suis les consignes du bandeau rouge en bas de la page.")
+    sel_date = designer(page, "1/3 - Clique sur le CHAMP DATE (la case où la date est affichée).", False, "date")
+    sel_export = designer(page, "2/3 - Clique sur le BOUTON D'EXTRACTION EXCEL (aucune extraction ne sera lancée).",
+                          False, "bouton")
+    sel_valider = designer(
+        page, "3/3 - S'il faut cliquer sur un bouton APRÈS avoir changé la date (Rechercher, Valider...), clique dessus.",
+        True, "bouton")
     cfg.update(selecteur_date=sel_date, selecteur_export=sel_export, selecteur_valider=sel_valider)
     enregistrer_config(cfg)
-    log("Elements memorises dans config.json (relance avec --reapprendre pour les changer).")
+
+
+def preparer_page(page, cfg: dict, reseau, tout_reperer: bool) -> None:
+    """Attend que la page 'Mise au mille' soit affichee et que ses elements soient connus.
+
+    Tout se passe dans la fenetre du navigateur : pas besoin de la fenetre noire.
+    """
+    connu = bool(cfg["selecteur_date"] and cfg["selecteur_export"]) and not tout_reperer
+    debut = time.monotonic()
+    annonce = False
+    while True:
+        try:
+            page.evaluate(JS_BOT)
+            if connu:
+                if est_visible(page, cfg["selecteur_date"], 500) and est_visible(page, cfg["selecteur_export"], 500):
+                    page.evaluate("() => window.__bot.finAttente()")
+                    return
+            else:
+                champ = page.evaluate("() => window.__bot.trouverDate()")
+                bouton = page.evaluate("() => window.__bot.trouverExport()")
+                sel_date, sel_export = selecteur_unique(page, champ), selecteur_unique(page, bouton)
+                if sel_date and sel_export:
+                    attendre_calme(page, reseau, maxi=10)
+                    page.evaluate("() => window.__bot.finAttente()")
+                    log(f"  Champ date trouve          : {champ['apercu']}")
+                    log(f"  Bouton d'extraction trouve : {bouton['apercu']}")
+                    log("Reponds a la question du bandeau rouge, en bas de la fenetre du navigateur.")
+                    entourer(page, sel_date, "4px solid #ff1744")
+                    entourer(page, sel_export, "4px solid #ff1744")
+                    choix = page.evaluate(
+                        "([m, l]) => window.__bot.confirmer(m, l)",
+                        ["Bot : j'ai entouré en rouge le champ DATE et le bouton d'EXTRACTION EXCEL. Est-ce correct ?",
+                         ["Oui, lancer", "Non, je vais les montrer"]])
+                    entourer(page, sel_date, "")
+                    entourer(page, sel_export, "")
+                    if choix == 0:
+                        cfg.update(selecteur_date=sel_date, selecteur_export=sel_export, selecteur_valider="")
+                        enregistrer_config(cfg)
+                    else:
+                        reperage_manuel(page, cfg)
+                    return
+            if time.monotonic() - debut > 6:
+                if not annonce:
+                    annonce = True
+                    log("En attente de la page 'Mise au mille' : regarde la fenetre du navigateur"
+                        " (connecte-toi si c'est demande).")
+                if page.evaluate(
+                        "([m, l]) => window.__bot.attente(m, l)",
+                        ["Bot : j'attends la page « Mise au mille » (connecte-toi si besoin). "
+                         "Si elle est affichée et que rien ne se passe :", "Montrer moi-même le champ date et le bouton"]):
+                    reperage_manuel(page, cfg)
+                    return
+        except ErreurPlaywright as e:
+            if "closed" in str(e).lower():
+                raise ArretBot("La fenetre du navigateur a ete fermee.")
+            journal(f"  attente de la page : {str(e).splitlines()[0]}")  # navigation en cours : on reessaie
+        if time.monotonic() - debut > 1800:
+            raise ArretBot("Page 'Mise au mille' toujours pas reconnue apres 30 minutes.")
+        page.wait_for_timeout(700)
+
+
+def attendre_clic(page, message: str, libelle: str) -> None:
+    """Affiche un bandeau dans la page et attend que son bouton soit clique."""
+    while True:
+        try:
+            page.evaluate(JS_BOT)
+            if page.evaluate("([m, l]) => window.__bot.attente(m, l)", [message, libelle]):
+                return
+        except ErreurPlaywright as e:
+            if "closed" in str(e).lower():
+                raise ArretBot("La fenetre du navigateur a ete fermee.")
+        page.wait_for_timeout(500)
+
+
+def afficher_statut(page, message) -> None:
+    try:
+        page.evaluate(JS_BOT)
+        page.evaluate("m => window.__bot.statut(m)", message)
+    except ErreurPlaywright:
+        pass
 
 
 def diagnostic(page, raison: str) -> None:
@@ -1042,26 +1172,18 @@ def executer(args, cfg: dict) -> int:
                 raise ArretBot(f"Impossible d'ouvrir {cfg['url']} : {str(e).splitlines()[0]}\n"
                                "Verifie que tu es bien sur le reseau de l'usine (ou le VPN).")
 
-            if args.reapprendre:
-                cfg.update(selecteur_date="", selecteur_export="", selecteur_valider="")
-            connu = cfg["selecteur_date"] and cfg["selecteur_export"]
-            if not (connu and est_visible(page, cfg["selecteur_date"], 15000)):
-                log("")
-                log("Dans la fenetre du navigateur : connecte-toi si c'est demande et verifie")
-                log("que la page 'Mise au mille' est bien affichee.")
-                pause_entree("Appuie ensuite sur ENTREE ici pour continuer... ")
-                if args.diagnostic:
-                    diagnostic(page, "demande par --diagnostic")
-                    return 0
-                if not (connu and est_visible(page, cfg["selecteur_date"], 3000)):
-                    try:
-                        reperer_elements(page, cfg)
-                    except ArretBot:
-                        diagnostic(page, "reperage des elements impossible")
-                        raise
-            elif args.diagnostic:
+            if args.diagnostic:
+                log("Affiche la page 'Mise au mille' puis clique sur le bouton du bandeau rouge, en bas de la page.")
+                attendre_clic(page, "Bot (diagnostic) : affiche la page « Mise au mille », puis clique ici :",
+                              "Enregistrer le diagnostic")
                 diagnostic(page, "demande par --diagnostic")
                 return 0
+            try:
+                preparer_page(page, cfg, reseau, args.reapprendre)
+            except ArretBot:
+                diagnostic(page, "reperage des elements impossible")
+                raise
+            log("C'est parti. Ne ferme pas la fenetre du navigateur pendant le traitement.")
 
             nouveau = not FICHIER_RAPPORT.exists()
             with FICHIER_RAPPORT.open("a", newline="", encoding="utf-8-sig") as f_rapport:
@@ -1077,6 +1199,8 @@ def executer(args, cfg: dict) -> int:
                 for numero, jour in enumerate(a_faire, 1):
                     prefixe = f"[{numero}/{len(a_faire)}] {jour:%d/%m/%Y}"
                     fichier = None
+                    afficher_statut(page, f"Bot : extraction {numero}/{len(a_faire)} - {jour:%d/%m/%Y}"
+                                          f" - {compte['OK']} fichiers - ne pas fermer cette fenêtre")
                     try:
                         statut, fichier, remarque = extraire_jour(
                             page, cfg, reseau, evenements, saisie, jour, sortie / nom_du_jour(jour))
@@ -1188,7 +1312,9 @@ def main() -> int:
             pass
     args = lire_arguments()
     cfg = charger_config()
-    journal("=" * 30 + " lancement : " + " ".join(sys.argv[1:]))
+    journal("=" * 30 + f" lancement (version {VERSION}, Python {sys.version.split()[0]}, {sys.platform}) : "
+            + " ".join(sys.argv[1:]))
+    print(f"Bot d'extraction Mise au mille - version {VERSION}", flush=True)
     if not cfg["url"]:
         cfg["url"] = input("Adresse de la page 'Mise au mille' (copie-la depuis le navigateur) : ").strip()
         if not cfg["url"]:
