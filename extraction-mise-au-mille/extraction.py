@@ -81,7 +81,7 @@ DEFAUTS = {
     "chemin_navigateur": "",
 }
 
-VERSION = "3"
+VERSION = "4"
 ERREURS_DE_SUITE_MAX = 5
 IDENTIQUES_MAX = 4
 
@@ -414,6 +414,18 @@ def log(message: str = "") -> None:
     journal(message)
 
 
+def alerte(message: str) -> None:
+    """Sous Windows, montre aussi le message dans une fenetre au premier plan (la fenetre noire peut etre cachee)."""
+    if sys.platform != "win32":
+        return
+    try:
+        import ctypes
+
+        ctypes.windll.user32.MessageBoxW(None, message, "Bot Mise au mille", 0x00051030)
+    except Exception:
+        pass
+
+
 def lire_jour(texte: str) -> date:
     for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y"):
         try:
@@ -662,8 +674,11 @@ def ouvrir_navigateur(p, cfg: dict):
         return contexte
     raise ArretBot(
         "Impossible de piloter un navigateur :\n" + "\n".join(echecs) + "\n"
-        + ("Le PC bloque le pilotage de son navigateur. Solution : lance 4_installer_chromium.bat\n"
-           "(il telecharge un navigateur a part, reserve au bot), puis relance le bot.\n" if bloque else "")
+        + ("Le PC bloque le pilotage de son navigateur.\n"
+           "Solution conseillee : la methode sans installation. Ouvre extraction_navigateur.html\n"
+           "dans Edge et suis les etapes (le script travaille directement dans la page).\n"
+           "Autre solution : lance 4_installer_chromium.bat (il telecharge un navigateur a part,\n"
+           "reserve au bot), puis relance le bot.\n" if bloque else "")
         + "Si ca ne marche toujours pas, envoie le fichier journal.log."
     )
 
@@ -1156,6 +1171,7 @@ def executer(args, cfg: dict) -> int:
 
     compte = {"OK": 0, "AUCUN FICHIER": 0, "ERREUR": 0}
     sans_fichier, en_erreur, identiques, extraits = [], [], [], []
+    arret = ""
 
     with sync_playwright() as p:
         contexte = ouvrir_navigateur(p, cfg)
@@ -1277,6 +1293,7 @@ def executer(args, cfg: dict) -> int:
         except KeyboardInterrupt:
             log("\nInterrompu (Ctrl+C).")
         except ArretBot as e:
+            arret = str(e)
             log("")
             log(f"ARRET : {e}")
         finally:
@@ -1301,6 +1318,8 @@ def executer(args, cfg: dict) -> int:
         log("Jours en erreur (seront retentes au prochain lancement) : "
             + ", ".join(f"{j:%d/%m/%Y}" for j in en_erreur[:40]) + (" ..." if len(en_erreur) > 40 else ""))
     log(f"Rapport detaille : {FICHIER_RAPPORT}")
+    if arret:
+        alerte("Le bot s'est arrete :\n\n" + arret)
     return 1 if (en_erreur or restants) else 0
 
 
@@ -1324,6 +1343,7 @@ def main() -> int:
         return executer(args, cfg)
     except ArretBot as e:
         log(f"ARRET : {e}")
+        alerte("Le bot s'est arrete :\n\n" + str(e))
         return 2
     except PermissionError as e:
         log(f"ARRET : fichier verrouille ({e.filename}). Ferme-le (ouvert dans Excel ?) et relance.")

@@ -11,6 +11,15 @@ d'export du tableau) : la date est saisie au clavier ou, si le champ ne l'accept
 cliquée dans le calendrier, puis contrôlée sur la vraie valeur du sélecteur avant chaque
 extraction.
 
+## Deux méthodes
+
+| | Méthode | Quand l'utiliser |
+|---|---|---|
+| **1** | **Sans installation** : ouvrir `extraction_navigateur.html` dans Edge et suivre les étapes. Le script travaille directement dans la page de l'appli et remet un seul ZIP avec tous les Excel renommés. | À essayer en premier si le PC est verrouillé (Edge reste sur une page blanche `about:blank` avec le bot Python). |
+| **2** | **Bot Python** (`1_installer.bat`, `2_test.bat`, `3_lancer_extraction.bat`) : pilote Edge de l'extérieur et range les fichiers un par un dans `extractions`. | Si le PC autorise le pilotage d'Edge. |
+
+La suite de ce document décrit la méthode 2. La méthode 1 est expliquée dans `extraction_navigateur.html`.
+
 ## Mise en route (Windows)
 
 1. **Une seule fois** : double-clic sur `1_installer.bat` (installe le module Python `playwright`).
@@ -72,10 +81,10 @@ python extraction.py --diagnostic                           décrire la page san
 
 - **Dans tous les cas** : le fichier `journal.log` du dossier contient tout ce que le bot a fait.
   C'est le fichier à envoyer pour comprendre un blocage.
-- **Edge s'ouvre mais il ne se passe rien, puis il se referme** : le PC interdit de piloter Edge
-  (politique de l'entreprise). Le bot l'indique dans la fenêtre noire. Lance alors
-  `4_installer_chromium.bat` : il télécharge un navigateur à part, réservé au bot, puis relance
-  `2_test.bat`.
+- **Edge s'ouvre sur une page blanche (`about:blank`) et il ne se passe rien** : le PC interdit
+  de piloter Edge (politique de l'entreprise). Au bout d'une minute, le bot l'indique dans une
+  fenêtre d'alerte. Utilise alors la méthode sans installation (`extraction_navigateur.html`).
+  Autre possibilité : `4_installer_chromium.bat` télécharge un navigateur à part, réservé au bot.
 - **Le bot n'arrive pas à régler la date ou s'arrête** : il crée un dossier `diagnostic`.
   Le fichier `diagnostic\elements.txt` (liste des champs et boutons de la page) suffit en
   général pour l'ajuster.

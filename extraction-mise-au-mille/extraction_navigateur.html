@@ -1,0 +1,916 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Extraction Mise au mille - sans installation</title>
+<style>
+  body { font: 16px/1.55 "Segoe UI", Arial, sans-serif; color: #1b2a33; background: #f4f6f8; margin: 0; padding: 24px 16px 60px; }
+  main { max-width: 820px; margin: 0 auto; }
+  h1 { font-size: 26px; margin: 0 0 8px; }
+  h2 { font-size: 20px; margin: 34px 0 10px; }
+  h3 { font-size: 17px; margin: 0 0 8px; }
+  .carte { background: #fff; border: 1px solid #d5dce1; border-radius: 8px; padding: 16px 20px; margin: 12px 0; }
+  ol { margin: 8px 0 0; padding-left: 22px; }
+  li { margin: 7px 0; }
+  kbd, code { font: 14px Consolas, monospace; background: #e8edf0; border-radius: 4px; padding: 1px 6px; }
+  a.favori { display: inline-block; background: #b71c1c; color: #fff; font-weight: bold; text-decoration: none;
+             padding: 7px 14px; border-radius: 6px; cursor: grab; }
+  button { font: bold 15px "Segoe UI", Arial, sans-serif; background: #1565c0; color: #fff; border: 0; border-radius: 6px;
+           padding: 7px 14px; cursor: pointer; }
+  .info { color: #2e7d32; font-weight: bold; margin-left: 8px; }
+  .note { color: #546e7a; font-size: 15px; }
+</style>
+</head>
+<body>
+<main>
+<h1>Extraction « Mise au mille » sans installation</h1>
+<p>Cette méthode n'installe rien et ne pilote pas Edge de l'extérieur. Un script travaille directement dans la page
+de l'appli, dans ton Edge habituel : il change la date jour après jour, déclenche l'extraction Excel, et te remet à
+la fin <strong>un seul fichier ZIP</strong> contenant tous les Excel renommés avec la date du programme
+(<code>Mise_au_mille_2025-07-01.xlsx</code>, etc.).</p>
+
+<h2>Étape 1 : lancer le script dans la page de l'appli</h2>
+
+<div class="carte">
+<h3>Méthode A : avec un favori (la plus simple)</h3>
+<ol>
+<li>Affiche la barre de favoris d'Edge : <kbd>Ctrl</kbd> + <kbd>Maj</kbd> + <kbd>B</kbd>.</li>
+<li>Fais glisser ce bouton rouge dans la barre de favoris :
+    <a class="favori" id="favori" href="#">Extraction Mise au mille</a> <span class="info" id="infoFavori"></span></li>
+<li>Ouvre l'appli sur la page « Mise au mille », dans le même Edge.</li>
+<li>Clique sur le favori « Extraction Mise au mille ». Un panneau sombre apparaît en bas de la page.</li>
+</ol>
+</div>
+
+<div class="carte">
+<h3>Méthode B : avec la console (si le favori ne fait rien)</h3>
+<ol>
+<li>Clique ici : <button id="copier" type="button">Copier le script</button> <span class="info" id="infoCopie"></span></li>
+<li>Va sur l'onglet de l'appli, page « Mise au mille », appuie sur <kbd>F12</kbd> puis clique sur l'onglet <strong>Console</strong>.</li>
+<li>Colle avec <kbd>Ctrl</kbd> + <kbd>V</kbd> puis appuie sur <kbd>Entrée</kbd>.<br>
+    <span class="note">Si Edge refuse de coller et demande de taper <code>autoriser le collage</code> (ou <code>allow pasting</code>),
+    tape ces mots, appuie sur Entrée, puis colle à nouveau.</span></li>
+<li>Ferme la console avec <kbd>F12</kbd>. Le panneau sombre est en bas de la page.</li>
+</ol>
+</div>
+
+<h2>Étape 2 : dans la page de l'appli</h2>
+<div class="carte">
+<ol>
+<li>Dans le panneau du bas, vérifie les deux dates (du 1er juillet 2025 à aujourd'hui) puis clique sur <strong>Démarrer</strong>.</li>
+<li>Le script entoure en rouge le champ date et le bouton d'extraction. Clique sur <strong>Oui, lancer</strong>.
+    S'il s'est trompé, clique sur <strong>Non, je vais les montrer</strong> et suis les consignes.</li>
+<li>Laisse l'onglet de l'appli <strong>affiché à l'écran</strong> pendant le traitement (ne le réduis pas, ne change pas d'onglet) :
+    un onglet caché est fortement ralenti par Edge. L'avancement s'affiche dans le panneau.</li>
+<li>À la fin, clique sur <strong>Télécharger le ZIP</strong>. Le fichier arrive dans ton dossier Téléchargements :
+    il contient tous les Excel renommés et un <code>rapport_extraction.csv</code>.</li>
+</ol>
+</div>
+
+<h2>À savoir</h2>
+<div class="carte">
+<ul>
+<li><strong>Rien ne se télécharge pendant le traitement</strong> : les fichiers sont gardés en mémoire par Edge jusqu'au ZIP final.</li>
+<li><strong>Reprise</strong> : en cas de coupure ou de page rechargée, relance le script (favori ou console) puis Démarrer.
+    Il reprend aux jours manquants, ce qui est déjà extrait est conservé.</li>
+<li><strong>Jours sans production</strong> : quand le tableau est vide, aucun fichier n'est créé. Ces jours figurent dans le rapport.</li>
+<li><strong>Sécurité</strong> : avant chaque extraction, le script contrôle que le sélecteur de date est bien sur le jour voulu.
+    Si les premiers fichiers ont tous le même contenu, il s'arrête et le signale.</li>
+<li><strong>Tout effacer</strong> vide la mémoire (à faire une fois le ZIP récupéré et vérifié).</li>
+</ul>
+</div>
+</main>
+
+<textarea id="code" hidden readonly>/*
+ * Extraction "Mise au mille" - version navigateur, sans installation.
+ *
+ * Ce script s'execute DANS la page de l'appli (favori ou console F12 de Edge) :
+ * il regle la date jour apres jour, declenche l'extraction Excel, garde chaque
+ * fichier en memoire du navigateur, puis propose un seul ZIP contenant tous les
+ * fichiers renommes avec la date du programme.
+ * Mode d'emploi : ouvrir extraction_navigateur.html.
+ */
+(() =&gt; {
+  'use strict';
+  if (window.__mam) { window.__mam.montrer(); return; }
+
+  const VERSION = '1';
+  const REGLAGES = {
+    debut: '2025-07-01',        // premier jour propose
+    prefixe: 'Mise_au_mille_',  // nom des fichiers : prefixe + AAAA-MM-JJ + extension
+    exporterSiVide: false,      // true : extraire aussi les jours ou le tableau est vide
+    attenteExport: 120,         // secondes max pour qu'un fichier arrive apres le clic
+    silenceSansExport: 15,      // secondes sans aucune activite apres le clic -&gt; "aucun fichier"
+    attenteChargement: 90,      // secondes max de chargement de la page pour un jour
+    erreursDeSuiteMax: 5,
+    identiquesMax: 4,
+  };
+  const FOND_IGNORE = /signalr|\/hubs?\/|socket\.io|sockjs|negotiate|\/poll/i;
+  const BOUTONS = 'button, a, [role=button], input[type=button], input[type=submit]';
+  const GRILLES = '.dx-datagrid, .dx-treelist, .dx-pivotgrid';
+
+  // ------------------------------------------------------------------ outils
+  const deux = n =&gt; String(n).padStart(2, '0');
+  const isoLocal = d =&gt; d.getFullYear() + '-' + deux(d.getMonth() + 1) + '-' + deux(d.getDate());
+  const versDate = iso =&gt; { const [a, m, j] = iso.split('-').map(Number); return new Date(a, m - 1, j); };
+  const jourFr = iso =&gt; iso.split('-').reverse().join('/');
+  const horsPanneau = el =&gt; !el.closest('[data-bot-barre]');
+  const visible = el =&gt; {
+    const r = el.getBoundingClientRect(), s = getComputedStyle(el);
+    return r.width &gt; 0 &amp;&amp; r.height &gt; 0 &amp;&amp; s.visibility !== 'hidden' &amp;&amp; s.display !== 'none';
+  };
+  const texteCourt = el =&gt; (el.innerText || el.value || '').trim().replace(/\s+/g, ' ');
+  const q = v =&gt; '"' + String(v).replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"';
+
+  // Fonctions d'origine du navigateur, gardees avant de poser les intercepteurs.
+  const natif = {
+    fetch: window.fetch,
+    clicLien: HTMLAnchorElement.prototype.click,
+    envoyer: EventTarget.prototype.dispatchEvent,
+    creerUrl: URL.createObjectURL,
+    valeur: Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set,
+  };
+
+  // Pause : passe par un Worker quand c'est possible, car les minuteries d'un onglet
+  // masque sont fortement ralenties par le navigateur.
+  let dormir = ms =&gt; new Promise(r =&gt; setTimeout(r, ms));
+  try {
+    const source = natif.creerUrl.call(URL, new Blob(
+      ['onmessage = e =&gt; setTimeout(() =&gt; postMessage(e.data.n), e.data.ms);'], {type: 'text/javascript'}));
+    const ouvrier = new Worker(source);
+    const attentes = new Map();
+    let n = 0;
+    const repli = () =&gt; { dormir = ms =&gt; new Promise(r =&gt; setTimeout(r, ms)); attentes.forEach(r =&gt; r()); attentes.clear(); };
+    ouvrier.onmessage = e =&gt; { const r = attentes.get(e.data); attentes.delete(e.data); if (r) r(); };
+    ouvrier.onerror = repli;
+    dormir = ms =&gt; new Promise(r =&gt; { attentes.set(++n, r); ouvrier.postMessage({n, ms}); });
+  } catch (e) { /* minuterie classique */ }
+
+  // Clic complet (appui, relachement, clic), comme le ferait la souris.
+  function clicSimule(el, sansClic) {
+    const r = el.getBoundingClientRect();
+    const o = {bubbles: true, cancelable: true, view: window, button: 0,
+               clientX: r.left + r.width / 2, clientY: r.top + r.height / 2};
+    const p = {...o, pointerId: 1, isPrimary: true, pointerType: 'mouse'};
+    natif.envoyer.call(el, new PointerEvent('pointerdown', {...p, buttons: 1}));
+    natif.envoyer.call(el, new MouseEvent('mousedown', {...o, buttons: 1}));
+    natif.envoyer.call(el, new PointerEvent('pointerup', p));
+    natif.envoyer.call(el, new MouseEvent('mouseup', o));
+    if (!sansClic) natif.envoyer.call(el, new MouseEvent('click', o));
+  }
+
+  // ---------------------------------------------------- activite du reseau
+  const reseau = {
+    enCours: new Map(), dernier: performance.now(), jeton: 0,
+    debut(url) {
+      if (FOND_IGNORE.test(String(url || ''))) return 0;
+      this.enCours.set(++this.jeton, performance.now());
+      this.dernier = performance.now();
+      return this.jeton;
+    },
+    fin(jeton) { if (this.enCours.delete(jeton)) this.dernier = performance.now(); },
+    calmeDepuis() {
+      const maintenant = performance.now();
+      // une requete en attente depuis plus de 2 minutes est une connexion de fond
+      this.enCours.forEach((depart, jeton) =&gt; { if (maintenant - depart &gt; 120000) this.enCours.delete(jeton); });
+      return this.enCours.size ? 0 : maintenant - this.dernier;
+    },
+    marquer() { this.dernier = performance.now(); },
+  };
+  const xhrOuvrir = XMLHttpRequest.prototype.open, xhrEnvoyer = XMLHttpRequest.prototype.send;
+  XMLHttpRequest.prototype.open = function (methode, url) { this.__mamUrl = url; return xhrOuvrir.apply(this, arguments); };
+  XMLHttpRequest.prototype.send = function () {
+    const jeton = reseau.debut(this.__mamUrl);
+    if (jeton) this.addEventListener('loadend', () =&gt; reseau.fin(jeton), {once: true});
+    return xhrEnvoyer.apply(this, arguments);
+  };
+  if (natif.fetch) {
+    window.fetch = function (ressource) {
+      const jeton = reseau.debut(ressource &amp;&amp; ressource.url ? ressource.url : ressource);
+      const promesse = natif.fetch.apply(this, arguments);
+      if (jeton) promesse.then(() =&gt; reseau.fin(jeton), () =&gt; reseau.fin(jeton));
+      return promesse;
+    };
+  }
+  const chargementVisible = () =&gt; Array.from(document.querySelectorAll('.dx-loadpanel-content')).some(visible);
+
+  async function calme(silence) {
+    const debut = performance.now();
+    await dormir(250);
+    while (performance.now() - debut &lt; REGLAGES.attenteChargement * 1000) {
+      if (reseau.calmeDepuis() &gt;= (silence || 700) &amp;&amp; !chargementVisible()) return;
+      await dormir(120);
+    }
+    throw new Error('la page charge toujours');
+  }
+
+  // ------------------------------------- capture du fichier au lieu du telechargement
+  let capture = null;
+  function intercepter(lien) {
+    if (!capture || !(lien instanceof HTMLAnchorElement)) return false;
+    const adresse = lien.href || '';
+    if (!lien.hasAttribute('download') &amp;&amp; !/^(blob|data):/.test(adresse)) return false;
+    const c = capture;
+    capture = null;
+    (async () =&gt; {
+      let blob = null;
+      try {
+        const reponse = await natif.fetch.call(window, adresse, {credentials: 'include'});
+        if (reponse.ok) blob = await reponse.blob();
+      } catch (e) { /* on se rabat sur le dernier Blob cree */ }
+      c.resoudre({nom: lien.getAttribute('download') || '', blob: blob || c.dernierBlob});
+    })();
+    return true;
+  }
+  HTMLAnchorElement.prototype.click = function () { if (!intercepter(this)) return natif.clicLien.apply(this, arguments); };
+  EventTarget.prototype.dispatchEvent = function (evenement) {
+    if (capture &amp;&amp; evenement &amp;&amp; evenement.type === 'click' &amp;&amp; intercepter(this)) return true;
+    return natif.envoyer.apply(this, arguments);
+  };
+  URL.createObjectURL = function (objet) {
+    if (capture &amp;&amp; objet instanceof Blob) capture.dernierBlob = objet;
+    return natif.creerUrl.apply(this, arguments);
+  };
+
+  // Clique sur le bouton d'extraction et attend le fichier. null s'il n'en vient aucun.
+  async function exporter(bouton) {
+    let recu = null;
+    capture = {resoudre: f =&gt; { recu = f; }, dernierBlob: null};
+    reseau.marquer();
+    clicSimule(bouton);
+    const debut = performance.now();
+    while (!recu) {
+      await dormir(150);
+      const ecoule = (performance.now() - debut) / 1000;
+      if (ecoule &gt; REGLAGES.attenteExport) { capture = null; throw new Error('pas de fichier après ' + Math.round(ecoule) + ' s'); }
+      if (capture &amp;&amp; ecoule &gt; REGLAGES.silenceSansExport &amp;&amp; reseau.calmeDepuis() / 1000 &gt; REGLAGES.silenceSansExport
+          &amp;&amp; !chargementVisible()) { capture = null; return null; }
+    }
+    if (!recu.blob || !recu.blob.size) throw new Error('fichier vide');
+    return recu;
+  }
+
+  // ------------------------------------------------ stockage (IndexedDB, sinon memoire)
+  const base = {
+    db: null, memoire: new Map(), pret: null,
+    ouvrir() {
+      if (!this.pret) this.pret = new Promise(fini =&gt; {
+        try {
+          const r = indexedDB.open('mam-extraction', 1);
+          r.onupgradeneeded = () =&gt; r.result.createObjectStore('jours', {keyPath: 'date'});
+          r.onsuccess = () =&gt; { this.db = r.result; fini(); };
+          r.onerror = r.onblocked = () =&gt; fini();
+        } catch (e) { fini(); }
+      });
+      return this.pret;
+    },
+    operation(mode, action) {
+      return new Promise((ok, echec) =&gt; {
+        const t = this.db.transaction('jours', mode);
+        const requete = action(t.objectStore('jours'));
+        t.oncomplete = () =&gt; ok(requete &amp;&amp; requete.result);
+        t.onerror = t.onabort = () =&gt; echec(t.error || new Error('stockage refusé'));
+      });
+    },
+    async ecrire(fiche) {
+      await this.ouvrir();
+      if (this.db) {
+        try { await this.operation('readwrite', s =&gt; s.put(fiche)); return; } catch (e) { this.db = null; }
+      }
+      this.memoire.set(fiche.date, fiche);
+    },
+    async toutes() {
+      await this.ouvrir();
+      const fiches = this.db ? await this.operation('readonly', s =&gt; s.getAll()) : [];
+      return fiches.concat(Array.from(this.memoire.values())).sort((a, b) =&gt; a.date &lt; b.date ? -1 : 1);
+    },
+    async vider() {
+      await this.ouvrir();
+      this.memoire.clear();
+      if (this.db) await this.operation('readwrite', s =&gt; s.clear());
+    },
+  };
+
+  // --------------------------------------------------------------------- ZIP
+  const TABLE_CRC = (() =&gt; {
+    const t = new Uint32Array(256);
+    for (let n = 0; n &lt; 256; n++) {
+      let c = n;
+      for (let k = 0; k &lt; 8; k++) c = c &amp; 1 ? 0xEDB88320 ^ (c &gt;&gt;&gt; 1) : c &gt;&gt;&gt; 1;
+      t[n] = c &gt;&gt;&gt; 0;
+    }
+    return t;
+  })();
+  function crc32(octets) {
+    let c = 0xFFFFFFFF;
+    for (let i = 0; i &lt; octets.length; i++) c = TABLE_CRC[(c ^ octets[i]) &amp; 0xFF] ^ (c &gt;&gt;&gt; 8);
+    return (c ^ 0xFFFFFFFF) &gt;&gt;&gt; 0;
+  }
+
+  // Archive ZIP sans compression (les .xlsx sont deja compresses).
+  async function construireZip(fichiers) {
+    const encodeur = new TextEncoder(), morceaux = [], repertoire = [];
+    const d = new Date();
+    const heure = (d.getHours() &lt;&lt; 11) | (d.getMinutes() &lt;&lt; 5) | (d.getSeconds() &gt;&gt; 1);
+    const jour = ((d.getFullYear() - 1980) &lt;&lt; 9) | ((d.getMonth() + 1) &lt;&lt; 5) | d.getDate();
+    let position = 0, tailleRepertoire = 0;
+    for (const f of fichiers) {
+      const nom = encodeur.encode(f.nom);
+      const donnees = new Uint8Array(await f.blob.arrayBuffer());
+      const crc = crc32(donnees);
+      const local = new DataView(new ArrayBuffer(30));
+      local.setUint32(0, 0x04034b50, true); local.setUint16(4, 20, true); local.setUint16(6, 0x0800, true);
+      local.setUint16(8, 0, true); local.setUint16(10, heure, true); local.setUint16(12, jour, true);
+      local.setUint32(14, crc, true); local.setUint32(18, donnees.length, true); local.setUint32(22, donnees.length, true);
+      local.setUint16(26, nom.length, true); local.setUint16(28, 0, true);
+      morceaux.push(local.buffer, nom, donnees);
+      const central = new DataView(new ArrayBuffer(46));
+      central.setUint32(0, 0x02014b50, true); central.setUint16(4, 20, true); central.setUint16(6, 20, true);
+      central.setUint16(8, 0x0800, true); central.setUint16(10, 0, true); central.setUint16(12, heure, true);
+      central.setUint16(14, jour, true); central.setUint32(16, crc, true); central.setUint32(20, donnees.length, true);
+      central.setUint32(24, donnees.length, true); central.setUint16(28, nom.length, true);
+      central.setUint32(42, position, true);
+      repertoire.push(central.buffer, nom);
+      position += 30 + nom.length + donnees.length;
+      tailleRepertoire += 46 + nom.length;
+    }
+    const fin = new DataView(new ArrayBuffer(22));
+    fin.setUint32(0, 0x06054b50, true); fin.setUint16(8, fichiers.length, true); fin.setUint16(10, fichiers.length, true);
+    fin.setUint32(12, tailleRepertoire, true); fin.setUint32(16, position, true);
+    return new Blob(morceaux.concat(repertoire, [fin.buffer]), {type: 'application/zip'});
+  }
+
+  // Empreinte du contenu d'un .xlsx (un ZIP) : les CRC de ses parties, hors metadonnees.
+  async function empreinte(blob) {
+    const o = new Uint8Array(await blob.arrayBuffer()), v = new DataView(o.buffer);
+    let fin = -1;
+    for (let i = o.length - 22; i &gt;= Math.max(0, o.length - 65557); i--) if (v.getUint32(i, true) === 0x06054b50) { fin = i; break; }
+    if (fin &lt; 0) return 'brut:' + o.length + ':' + crc32(o);
+    const decodeur = new TextDecoder(), parties = [];
+    let p = v.getUint32(fin + 16, true);
+    for (let k = v.getUint16(fin + 10, true); k &gt; 0 &amp;&amp; p + 46 &lt;= o.length &amp;&amp; v.getUint32(p, true) === 0x02014b50; k--) {
+      const lNom = v.getUint16(p + 28, true);
+      const nom = decodeur.decode(o.subarray(p + 46, p + 46 + lNom));
+      if (!nom.startsWith('docProps/')) parties.push(nom + ':' + v.getUint32(p + 16, true));
+      p += 46 + lNom + v.getUint16(p + 30, true) + v.getUint16(p + 32, true);
+    }
+    return parties.sort().join('|');
+  }
+
+  // --------------------------------------------- reperage des elements de la page
+  const idStable = id =&gt; !!id &amp;&amp; !/^(mat|cdk|pr_id|ng|el-id|input-|v-|radix|headlessui|mui|:r)/i.test(id) &amp;&amp;
+    !/\d{3,}/.test(id) &amp;&amp; !/[-_:]\d+$/.test(id);
+
+  function chemin(el) {
+    const morceaux = [];
+    for (let e = el; e &amp;&amp; e.nodeType === 1 &amp;&amp; e !== document.body &amp;&amp; e !== document.documentElement; e = e.parentElement) {
+      if (idStable(e.id)) { morceaux.unshift('#' + CSS.escape(e.id)); return morceaux.join(' &gt; '); }
+      let n = 1;
+      for (let s = e.previousElementSibling; s; s = s.previousElementSibling) if (s.tagName === e.tagName) n++;
+      morceaux.unshift(e.tagName.toLowerCase() + ':nth-of-type(' + n + ')');
+    }
+    morceaux.unshift('body');
+    return morceaux.join(' &gt; ');
+  }
+
+  // Maniere de retrouver un element plus tard (la page peut le reconstruire entre deux jours).
+  function repere(el) {
+    const tag = el.tagName.toLowerCase(), essais = [];
+    if (idStable(el.id)) essais.push('#' + CSS.escape(el.id));
+    for (const a of ['data-testid', 'data-test', 'data-cy', 'formcontrolname', 'name', 'aria-label', 'placeholder', 'title']) {
+      const v = el.getAttribute(a);
+      if (v) essais.push(tag + '[' + a + '=' + q(v) + ']');
+    }
+    const boiteDx = tag === 'input' &amp;&amp; el.closest('.dx-datebox');
+    if (boiteDx) {
+      if (idStable(boiteDx.id)) essais.push('#' + CSS.escape(boiteDx.id) + ' input.dx-texteditor-input');
+      essais.push('.dx-datebox input.dx-texteditor-input');
+    }
+    for (const c of el.classList) if (/export/i.test(c)) essais.push('.' + CSS.escape(c));
+    essais.push(chemin(el));
+    for (const seulementUnique of [true, false]) {
+      for (const css of essais) {
+        let tous;
+        try { tous = Array.from(document.querySelectorAll(css)).filter(horsPanneau); } catch (e) { continue; }
+        const rang = tous.indexOf(el);
+        if (rang &gt;= 0 &amp;&amp; (tous.length === 1 || !seulementUnique)) return {css, rang};
+      }
+    }
+    return null;
+  }
+  function retrouver(r) {
+    if (!r) return null;
+    try { return Array.from(document.querySelectorAll(r.css)).filter(horsPanneau)[r.rang] || null; } catch (e) { return null; }
+  }
+
+  function scoreDate(el) {
+    if (!visible(el) || el.disabled || !horsPanneau(el)) return 0;
+    const type = (el.getAttribute('type') || 'text').toLowerCase();
+    if (type === 'date') return 100;
+    if (!/^(text|search|tel)$/.test(type)) return 0;
+    if (el.closest('.dx-datebox')) return el.closest(GRILLES + ', .dx-overlay-content') ? 70 : 95;
+    let indices = Array.from(el.attributes).map(a =&gt; a.name + '=' + a.value).join(' ');
+    for (let e = el.parentElement, i = 0; e &amp;&amp; i &lt; 3; e = e.parentElement, i++) indices += ' ' + e.tagName + ' ' + (e.getAttribute('class') || '');
+    if (/date-?picker|calendar|flatpickr|date-?input|date-?box|el-date|ant-picker|dp__|p-calendar/i.test(indices)) return 90;
+    if (/^\s*(\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4}|\d{4}-\d{2}-\d{2})\s*$/.test(el.value || '')) return 80;
+    return 0;
+  }
+  function scoreExport(el) {
+    if (!visible(el) || !horsPanneau(el)) return 0;
+    const bits = [el.innerText, el.value, el.title, el.getAttribute('aria-label'), el.getAttribute('class'), el.getAttribute('download')];
+    el.querySelectorAll('i, svg, img, span, mat-icon').forEach(c =&gt; bits.push(c.getAttribute('class'), c.getAttribute('title'), c.getAttribute('alt')));
+    const t = bits.filter(Boolean).join(' ').toLowerCase();
+    let s = 0;
+    if (/extraction|extraire|export/.test(t)) s += 50;
+    if (/excel|xlsx?\b/.test(t)) s += 40;
+    if (/t[ée]l[ée]charg|download|get_app/.test(t)) s += 30;
+    if (s &amp;&amp; /pdf|csv|import/.test(t)) s -= 30;
+    return s;
+  }
+  function meilleur(selecteur, score) {
+    const xs = Array.from(document.querySelectorAll(selecteur)).map(el =&gt; [score(el), el]).filter(x =&gt; x[0] &gt; 0).sort((a, b) =&gt; b[0] - a[0]);
+    return !xs.length || (xs.length &gt; 1 &amp;&amp; xs[1][0] === xs[0][0]) ? null : xs[0][1];
+  }
+  function versInput(el) {
+    if (el.tagName === 'INPUT') return el;
+    if (el.tagName === 'LABEL' &amp;&amp; el.control &amp;&amp; el.control.tagName === 'INPUT') return el.control;
+    const boiteDx = el.closest('.dx-datebox');
+    if (boiteDx) return boiteDx.querySelector('input.dx-texteditor-input');
+    for (let e = el, i = 0; e &amp;&amp; i &lt; 6; e = e.parentElement, i++) {
+      const ins = Array.from(e.querySelectorAll('input')).filter(visible);
+      if (ins.length === 1) return ins[0];
+      if (ins.length &gt; 1) return null;
+    }
+    return null;
+  }
+
+  // ------------------------------------------------- selecteur de date DevExtreme
+  // Vraie valeur d'un dxDateBox (champ cache), independante du format affiche.
+  function valeurDx(champ) {
+    const racine = champ.closest('.dx-datebox');
+    const cache = racine &amp;&amp; racine.querySelector('input[type=hidden]');
+    if (!cache) return undefined;      // pas un dxDateBox (ou trop ancien)
+    if (!cache.value) return null;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(cache.value)) return cache.value;
+    const d = new Date(cache.value);
+    return isNaN(d) ? null : isoLocal(d);
+  }
+
+  // Texte a saisir pour un jour, d'apres le texte affiche et la vraie date qu'il represente.
+  function texteCommeAffiche(affiche, vraieIso, jourIso) {
+    const m = /^(\d{1,4})([\/.\-])(\d{1,2})\2(\d{1,4})$/.exec((affiche || '').trim());
+    if (!m || !vraieIso) return null;
+    const [a, mo, j] = vraieIso.split('-').map(Number), parts = [m[1], m[3], m[4]].map(Number);
+    const ordres = [['j', 'm', 'A'], ['m', 'j', 'A'], ['A', 'm', 'j'], ['j', 'm', 'a'], ['m', 'j', 'a']];
+    const vraies = {j, m: mo, A: a, a: a % 100};
+    const ordre = ordres.find(o =&gt; o.every((cle, i) =&gt; parts[i] === vraies[cle]) &amp;&amp; (o.includes('A') ? true : m[4].length &lt;= 2));
+    if (!ordre) return null;
+    const sansZero = [m[1], m[3], m[4]].some((p, i) =&gt; ordre[i] !== 'A' &amp;&amp; ordre[i] !== 'a' &amp;&amp; p.length === 1);
+    const [ca, cm, cj] = jourIso.split('-').map(Number);
+    const cible = {j: sansZero ? String(cj) : deux(cj), m: sansZero ? String(cm) : deux(cm), A: String(ca), a: deux(ca % 100)};
+    return ordre.map(cle =&gt; cible[cle]).join(m[2]);
+  }
+
+  function saisieSimulee(champ, texte) {
+    champ.focus();
+    natif.valeur.call(champ, texte);
+    natif.envoyer.call(champ, new Event('input', {bubbles: true}));
+    natif.envoyer.call(champ, new Event('change', {bubbles: true}));
+    champ.blur();
+  }
+
+  // Calendrier ouvert : mois affiche et case du jour voulu ("AAAA/MM/JJ").
+  function viserJour(vise) {
+    const cals = Array.from(document.querySelectorAll('.dx-overlay-wrapper .dx-calendar')).filter(visible);
+    if (!cals.length) return {ouvert: false};
+    const cal = cals[cals.length - 1];
+    const corps = cal.querySelector('.dx-calendar-body').getBoundingClientRect();
+    const aLecran = td =&gt; { const r = td.getBoundingClientRect(), x = r.left + r.width / 2; return r.width &gt; 0 &amp;&amp; x &gt; corps.left &amp;&amp; x &lt; corps.right; };
+    const cases = Array.from(cal.querySelectorAll('td.dx-calendar-cell:not(.dx-calendar-other-view)')).filter(aLecran);
+    const cible = cases.find(td =&gt; td.getAttribute('data-value') === vise) || null;
+    return {ouvert: true, cal, vueMois: cal.classList.contains('dx-calendar-view-month'),
+            mois: cases.length ? (cases[0].getAttribute('data-value') || '').slice(0, 7) : null,
+            interdit: !!cible &amp;&amp; cible.classList.contains('dx-calendar-empty-cell'), cible};
+  }
+
+  async function calendrierDx(champ, jourIso) {
+    const vise = jourIso.replace(/-/g, '/'), mois = vise.slice(0, 7);
+    if (!viserJour(vise).ouvert) {
+      clicSimule(champ.closest('.dx-datebox').querySelector('.dx-dropdowneditor-button') || champ);
+      await dormir(500);
+    }
+    for (let i = 0; i &lt; 80; i++) {
+      const etat = viserJour(vise);
+      if (!etat.ouvert) throw new Error('le calendrier ne s\'ouvre pas');
+      if (!etat.vueMois) throw new Error('le calendrier n\'affiche pas les jours');
+      if (etat.interdit) throw new Error('date non sélectionnable dans le calendrier');
+      if (etat.cible) {
+        clicSimule(etat.cible);
+        await dormir(300);
+        const valider = Array.from(document.querySelectorAll('.dx-overlay-wrapper .dx-button.dx-popup-done')).filter(visible).pop();
+        if (valider) { clicSimule(valider); await dormir(200); }
+        return;
+      }
+      if (!etat.mois) { await dormir(200); continue; }
+      if (etat.mois === mois) throw new Error('jour absent du calendrier');
+      clicSimule(etat.cal.querySelector(etat.mois &lt; mois ? '.dx-calendar-navigator-next-view' : '.dx-calendar-navigator-previous-view'));
+      for (let k = 0; k &lt; 20; k++) { await dormir(150); if (viserJour(vise).mois !== etat.mois) break; }
+      await dormir(250);
+    }
+    throw new Error('mois introuvable dans le calendrier');
+  }
+  const fermerCalendrier = () =&gt; { if (viserJour('').ouvert) clicSimule(document.body, true); };
+
+  // Dernier recours : passer par l'objet DevExtreme, quand la page le laisse accessible.
+  function parObjetDx(champ, jourIso) {
+    const racine = champ.closest('.dx-datebox');
+    let objet = null;
+    try { objet = window.DevExpress.ui.dxDateBox.getInstance(racine); } catch (e) { /* non expose */ }
+    if (!objet) try { objet = (window.jQuery || window.$)(racine).dxDateBox('instance'); } catch (e) { /* non expose */ }
+    if (!objet) try { objet = window.ng.getComponent(racine.closest('dx-date-box') || racine).instance; } catch (e) { /* non expose */ }
+    if (!objet || typeof objet.option !== 'function') return false;
+    const actuelle = objet.option('value'), d = versDate(jourIso);
+    let valeur = d;
+    if (typeof actuelle === 'number') valeur = d.getTime();
+    else if (typeof actuelle === 'string') {
+      valeur = /Z$/.test(actuelle) ? d.toISOString().replace(/\.\d+Z$/, 'Z') : /T/.test(actuelle) ? jourIso + 'T00:00:00' : jourIso;
+    }
+    objet.option('value', valeur);
+    return true;
+  }
+
+  let echecsSaisie = 0, methodeAnnoncee = false;
+  async function reglerDate(champ, jourIso) {
+    const dx = valeurDx(champ);
+    if (dx === undefined) return reglerDateSimple(champ, jourIso);
+    if (dx === jourIso) return;
+    let obtenue = dx;
+    for (const methode of ['saisie', 'calendrier', 'objet']) {
+      try {
+        if (methode === 'saisie') {
+          const texte = echecsSaisie &lt; 2 ? texteCommeAffiche(champ.value, valeurDx(champ), jourIso) : null;
+          if (!texte) continue;
+          saisieSimulee(champ, texte);
+        } else if (methode === 'calendrier') await calendrierDx(champ, jourIso);
+        else if (!parObjetDx(champ, jourIso)) continue;
+      } catch (e) { journal('date par ' + methode + ' : ' + e.message); fermerCalendrier(); continue; }
+      await calme();
+      obtenue = valeurDx(champ);
+      if (obtenue === jourIso) {
+        if (!methodeAnnoncee) { methodeAnnoncee = true; journal('date réglée par ' + methode + ', valeur contrôlée'); }
+        return;
+      }
+      if (methode === 'saisie') echecsSaisie++;
+      fermerCalendrier();
+    }
+    throw new Error('date refusée par la page (le sélecteur indique ' + obtenue + ')');
+  }
+
+  // Champ date ordinaire (hors DevExtreme).
+  async function reglerDateSimple(champ, jourIso) {
+    const natifDate = (champ.getAttribute('type') || '').toLowerCase() === 'date';
+    let texte = jourIso;
+    if (!natifDate) {
+      const m = /^(\d{1,2})([\/.\-])(\d{1,2})\2(\d{4})$/.exec(champ.value.trim());
+      if (m &amp;&amp; Number(m[3]) &gt; 12) texte = [jourIso.slice(5, 7), jourIso.slice(8), jourIso.slice(0, 4)].join(m[2]);
+      else if (!/^\d{4}-\d{2}-\d{2}$/.test(champ.value.trim())) texte = jourIso.split('-').reverse().join(m ? m[2] : '/');
+    }
+    if (champ.value.trim() === texte) return;
+    saisieSimulee(champ, texte);
+    await calme();
+    if (champ.value.trim() !== texte) throw new Error('date refusée par la page (le champ affiche ' + champ.value + ')');
+  }
+
+  // Tableau exporte par le bouton : vide ?
+  function tableauVide(bouton) {
+    let grille = bouton.closest(GRILLES);
+    if (!grille) {
+      const toutes = Array.from(document.querySelectorAll(GRILLES)).filter(g =&gt; visible(g) &amp;&amp; !g.parentElement.closest(GRILLES));
+      if (toutes.length === 1) grille = toutes[0];
+    }
+    return !!grille &amp;&amp; Array.from(grille.querySelectorAll('.dx-datagrid-nodata, .dx-treelist-nodata')).some(visible);
+  }
+
+  // ---------------------------------------------------------------- panneau
+  const ui = {};
+  const lignesJournal = [];
+  function journal(message) {
+    lignesJournal.push(new Date().toLocaleTimeString() + ' ' + message);
+    if (lignesJournal.length &gt; 400) lignesJournal.shift();
+    try { console.log('[Mise au mille] ' + message); } catch (e) { /* console indisponible */ }
+  }
+  function creer(tag, style, texte) {
+    const e = document.createElement(tag);
+    if (style) e.style.cssText = style;
+    if (texte) e.textContent = texte;
+    return e;
+  }
+  const STYLE_BOUTON = 'margin:0 6px 0 0;font:bold 14px Arial,sans-serif;padding:6px 12px;cursor:pointer;border:0;border-radius:4px;';
+  function bouton(parent, libelle, action, couleur) {
+    const b = creer('button', STYLE_BOUTON + 'background:' + (couleur || '#eceff1') + ';color:' + (couleur ? '#fff' : '#000'), libelle);
+    b.type = 'button';
+    b.setAttribute('data-bot-bouton', '1');
+    b.addEventListener('click', action);
+    parent.appendChild(b);
+    return b;
+  }
+
+  function construirePanneau() {
+    const p = creer('div', 'position:fixed;left:0;right:0;bottom:0;z-index:2147483647;background:#1b2a33;color:#fff;' +
+      'font:14px Arial,sans-serif;padding:10px 14px;box-shadow:0 -2px 10px rgba(0,0,0,.5);text-align:left;line-height:1.5');
+    p.setAttribute('data-bot-barre', 'panneau');
+    ui.panneau = p;
+    ui.message = creer('div', 'font:bold 16px Arial,sans-serif;margin-bottom:6px');
+    ui.detail = creer('div', 'margin-bottom:8px;color:#cfd8dc');
+    ui.question = creer('div', 'margin-bottom:8px;display:none');
+    ui.commandes = creer('div', '');
+    p.append(ui.message, ui.detail, ui.question, ui.commandes);
+
+    const STYLE_DATE = 'font:14px Arial,sans-serif;padding:4px;margin:0 10px 0 4px;border:0;border-radius:4px;color:#000;background:#fff';
+    ui.commandes.appendChild(creer('span', '', 'Du'));
+    ui.debut = creer('input', STYLE_DATE); ui.debut.type = 'date';
+    ui.commandes.appendChild(ui.debut);
+    ui.commandes.appendChild(creer('span', '', 'au'));
+    ui.fin = creer('input', STYLE_DATE); ui.fin.type = 'date';
+    ui.commandes.appendChild(ui.fin);
+    let memo = {};
+    try { memo = JSON.parse(localStorage.getItem('mam-reglages') || '{}'); } catch (e) { /* stockage local indisponible */ }
+    ui.debut.value = memo.debut || REGLAGES.debut;
+    ui.fin.value = isoLocal(new Date());
+
+    ui.demarrer = bouton(ui.commandes, 'Démarrer', () =&gt; lancer(), '#2e7d32');
+    ui.pause = bouton(ui.commandes, 'Pause', () =&gt; { etat.pauseDemandee = true; ui.pause.disabled = true; afficher('Pause demandée : arrêt à la fin du jour en cours...'); });
+    ui.zip = bouton(ui.commandes, 'Télécharger le ZIP', () =&gt; telechargerZip(), '#1565c0');
+    ui.effacer = bouton(ui.commandes, 'Tout effacer', () =&gt; toutEffacer());
+    bouton(ui.commandes, 'Masquer', () =&gt; { p.style.display = 'none'; });
+    ui.pause.style.display = 'none';
+    document.documentElement.appendChild(p);
+  }
+  function afficher(message, detail) {
+    ui.message.textContent = message;
+    if (detail !== undefined) ui.detail.textContent = detail;
+  }
+
+  // Question posee dans le panneau : renvoie le rang du bouton choisi.
+  function demander(message, libelles) {
+    return new Promise(resolve =&gt; {
+      ui.question.textContent = '';
+      ui.question.style.display = '';
+      ui.question.appendChild(creer('span', 'font-weight:bold;margin-right:10px;color:#ffeb3b', message));
+      libelles.forEach((libelle, i) =&gt; bouton(ui.question, libelle, () =&gt; { ui.question.style.display = 'none'; resolve(i); }, i ? null : '#c62828'));
+    });
+  }
+
+  // L'utilisateur montre un element en cliquant dessus (le clic n'atteint pas la page).
+  function designer(message, optionnel, genre) {
+    return new Promise(resolve =&gt; {
+      ui.question.textContent = '';
+      ui.question.style.display = '';
+      const texte = creer('span', 'font-weight:bold;margin-right:10px;color:#ffeb3b', message);
+      ui.question.appendChild(texte);
+      const TYPES = ['click', 'mousedown', 'mouseup', 'pointerdown', 'pointerup', 'dblclick'];
+      let survole = null, ancien = '';
+      const quitterSurvol = () =&gt; { if (survole) survole.style.outline = ancien; survole = null; };
+      const survol = e =&gt; {
+        if (!horsPanneau(e.target) || e.target === survole) return;
+        quitterSurvol();
+        survole = e.target; ancien = survole.style.outline; survole.style.outline = '3px solid #ff1744';
+      };
+      const fin = v =&gt; {
+        TYPES.forEach(t =&gt; document.removeEventListener(t, bloque, true));
+        document.removeEventListener('mousemove', survol, true);
+        quitterSurvol();
+        ui.question.style.display = 'none';
+        resolve(v);
+      };
+      const bloque = e =&gt; {
+        if (!horsPanneau(e.target)) return;
+        e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+        if (e.type !== 'click') return;
+        const cible = genre === 'date' ? versInput(e.target) : (e.target.closest(BOUTONS + ', [onclick]') || e.target);
+        const r = cible &amp;&amp; repere(cible);
+        if (!r) { texte.textContent = 'Élément non reconnu, essaie encore. ' + message; return; }
+        fin(r);
+      };
+      if (optionnel) bouton(ui.question, 'Il n\'y en a pas : passer', () =&gt; fin(null));
+      bouton(ui.question, 'Abandonner', () =&gt; fin(undefined));
+      TYPES.forEach(t =&gt; document.addEventListener(t, bloque, true));
+      document.addEventListener('mousemove', survol, true);
+    });
+  }
+
+  function entourer(el, contour) {
+    const cible = el.closest('.dx-datebox') || el;
+    if (contour) cible.scrollIntoView({block: 'center'});
+    cible.style.outline = contour;
+  }
+
+  // Champ date, bouton d'extraction et bouton de validation eventuel.
+  async function obtenirReperes() {
+    let memo = null;
+    try { memo = JSON.parse(localStorage.getItem('mam-reperes') || 'null'); } catch (e) { /* stockage local indisponible */ }
+    if (memo &amp;&amp; retrouver(memo.date) &amp;&amp; retrouver(memo.exporter)) return memo;
+
+    const champ = meilleur('input', scoreDate), boutonExport = meilleur(BOUTONS, scoreExport);
+    let reperes = null;
+    if (champ &amp;&amp; boutonExport &amp;&amp; repere(champ) &amp;&amp; repere(boutonExport)) {
+      entourer(champ, '4px solid #ff1744'); entourer(boutonExport, '4px solid #ff1744');
+      afficher('Vérification des éléments de la page');
+      const choix = await demander('J\'ai entouré en rouge le champ DATE et le bouton d\'EXTRACTION EXCEL. Est-ce correct ?',
+                                   ['Oui, lancer', 'Non, je vais les montrer']);
+      entourer(champ, ''); entourer(boutonExport, '');
+      if (choix === 0) reperes = {date: repere(champ), exporter: repere(boutonExport), valider: null};
+    }
+    if (!reperes) {
+      afficher('Montre-moi les éléments de la page (tes clics ne déclenchent rien)');
+      const date = await designer('1/3 - Clique sur le CHAMP DATE.', false, 'date');
+      if (!date) return null;
+      const exporter = await designer('2/3 - Clique sur le BOUTON D\'EXTRACTION EXCEL.', false, 'bouton');
+      if (!exporter) return null;
+      const valider = await designer('3/3 - S\'il faut cliquer sur un bouton APRÈS avoir changé la date (Rechercher, Valider...), clique dessus.', true, 'bouton');
+      if (valider === undefined) return null;
+      reperes = {date, exporter, valider};
+    }
+    try { localStorage.setItem('mam-reperes', JSON.stringify(reperes)); } catch (e) { /* stockage local indisponible */ }
+    return reperes;
+  }
+
+  // ------------------------------------------------------------- deroulement
+  const etat = {enCours: false, pauseDemandee: false};
+  const titreOrigine = document.title;
+
+  async function bilan() {
+    const fiches = await base.toutes();
+    const compte = {ok: 0, vide: 0, erreur: 0, aucun: 0};
+    fiches.forEach(f =&gt; { compte[f.statut] = (compte[f.statut] || 0) + 1; });
+    return {fiches, compte, texte: compte.ok + ' fichiers en mémoire, ' + (compte.vide + compte.aucun) + ' jours sans fichier, ' + compte.erreur + ' en erreur'};
+  }
+
+  async function traiterJour(reperes, jourIso) {
+    const champ = retrouver(reperes.date);
+    if (!champ || !visible(champ)) throw new Error('champ date introuvable dans la page');
+    await reglerDate(champ, jourIso);
+    if (reperes.valider) {
+      const valider = retrouver(reperes.valider);
+      if (!valider) throw new Error('bouton de validation introuvable');
+      reseau.marquer(); clicSimule(valider);
+    }
+    await calme();
+    const boutonExport = retrouver(reperes.exporter);
+    if (!boutonExport || !visible(boutonExport)) throw new Error('bouton d\'extraction introuvable dans la page');
+    if (boutonExport.disabled || boutonExport.classList.contains('dx-state-disabled')) return {statut: 'aucun', remarque: 'bouton d\'extraction grisé'};
+    if (tableauVide(boutonExport) &amp;&amp; !REGLAGES.exporterSiVide) return {statut: 'vide', remarque: 'tableau vide ce jour-là'};
+    const fichier = await exporter(boutonExport);
+    if (!fichier) return {statut: 'aucun', remarque: 'aucun fichier produit par la page'};
+    const extension = (/\.[a-z0-9]{2,5}$/i.exec(fichier.nom) || ['.xlsx'])[0];
+    return {statut: 'ok', nom: REGLAGES.prefixe + jourIso + extension, blob: fichier.blob, taille: fichier.blob.size,
+            empreinte: await empreinte(fichier.blob), remarque: 'nom d\'origine : ' + fichier.nom};
+  }
+
+  async function lancer() {
+    if (etat.enCours) return;
+    const debut = ui.debut.value, fin = ui.fin.value;
+    if (!debut || !fin || debut &gt; fin) { afficher('Dates invalides : choisis un début et une fin.'); return; }
+    try { localStorage.setItem('mam-reglages', JSON.stringify({debut})); } catch (e) { /* stockage local indisponible */ }
+    etat.enCours = true; etat.pauseDemandee = false;
+    ui.demarrer.style.display = 'none';
+    let arret = null;
+    try {
+      const deja = new Map((await base.toutes()).map(f =&gt; [f.date, f]));
+      const jours = [];
+      for (let d = versDate(debut); isoLocal(d) &lt;= fin; d.setDate(d.getDate() + 1)) {
+        const fiche = deja.get(isoLocal(d));
+        if (!fiche || (fiche.statut !== 'ok' &amp;&amp; fiche.statut !== 'vide')) jours.push(isoLocal(d));
+      }
+      if (!jours.length) { arret = 'Tout est déjà extrait pour cette période.'; return; }
+      const reperes = await obtenirReperes();
+      if (!reperes) { arret = 'Repérage abandonné.'; return; }
+      ui.pause.style.display = ''; ui.pause.disabled = false;
+      await calme();
+
+      let erreursDeSuite = 0, faits = 0, precedente = null, tousIdentiques = true, nouveaux = [];
+      const compte = {ok: 0, vide: 0, aucun: 0, erreur: 0};
+      deja.forEach(f =&gt; { compte[f.statut] = (compte[f.statut] || 0) + 1; });
+      const depart = performance.now();
+      for (const jour of jours) {
+        if (etat.pauseDemandee) { arret = 'En pause. Clique sur Démarrer pour reprendre.'; break; }
+        const reste = faits ? Math.round((performance.now() - depart) / faits * (jours.length - faits) / 60000) : null;
+        afficher('Extraction en cours : ' + jourFr(jour) + '  (' + (faits + 1) + '/' + jours.length + ')',
+                 compte.ok + ' fichiers en mémoire, ' + (compte.vide + compte.aucun) + ' jours sans fichier, ' + compte.erreur + ' en erreur'
+                 + (reste !== null ? ' - reste environ ' + reste + ' min' : '') + ' - garde cet onglet affiché');
+        document.title = '[' + (faits + 1) + '/' + jours.length + '] ' + titreOrigine;
+        let fiche;
+        try {
+          fiche = await traiterJour(reperes, jour);
+          erreursDeSuite = 0;
+        } catch (e) {
+          fiche = {statut: 'erreur', remarque: e.message};
+          erreursDeSuite++;
+          fermerCalendrier();
+        }
+        if (fiche.statut === 'ok') {
+          if (fiche.empreinte === precedente) fiche.remarque += ' ; CONTENU IDENTIQUE au fichier précédent';
+          else if (precedente !== null) tousIdentiques = false;
+          precedente = fiche.empreinte;
+          nouveaux.push(jour);
+        }
+        journal(jourFr(jour) + ' : ' + fiche.statut + (fiche.nom ? ' ' + fiche.nom : '') + ' (' + fiche.remarque + ')');
+        const ancienne = deja.get(jour);
+        if (ancienne) compte[ancienne.statut]--;
+        compte[fiche.statut]++;
+        await base.ecrire({date: jour, horodatage: new Date().toISOString(), ...fiche});
+        faits++;
+        if (nouveaux.length &gt;= REGLAGES.identiquesMax &amp;&amp; tousIdentiques) {
+          for (const j of nouveaux) await base.ecrire({date: j, statut: 'erreur', remarque: 'fichier écarté : identique aux autres'});
+          arret = 'ARRÊT : les ' + nouveaux.length + ' premiers fichiers ont exactement le même contenu. La page ne tient pas ' +
+                  'compte de la date. S\'il faut cliquer sur un bouton après avoir changé la date, clique sur « Tout effacer » ' +
+                  'puis Démarrer, réponds « Non, je vais les montrer » et montre ce bouton à l\'étape 3/3.';
+          break;
+        }
+        if (erreursDeSuite &gt;= REGLAGES.erreursDeSuiteMax) {
+          arret = 'ARRÊT : ' + erreursDeSuite + ' erreurs de suite (dernière : ' + fiche.remarque + '). Recharge la page (F5), relance le script, puis Démarrer : il reprendra aux jours manquants.';
+          break;
+        }
+      }
+      if (!arret) arret = 'TERMINÉ. Clique sur « Télécharger le ZIP » pour récupérer les fichiers.';
+    } catch (e) {
+      arret = 'ARRÊT : ' + e.message;
+      journal('erreur : ' + (e.stack || e.message));
+    } finally {
+      etat.enCours = false;
+      ui.demarrer.style.display = ''; ui.pause.style.display = 'none';
+      document.title = titreOrigine;
+      afficher(arret || 'Arrêté.', (await bilan()).texte);
+    }
+  }
+
+  async function telechargerZip() {
+    const {fiches, compte} = await bilan();
+    if (!compte.ok) { afficher('Aucun fichier en mémoire pour le moment.'); return; }
+    ui.zip.disabled = true;
+    try {
+      afficher('Préparation du ZIP...');
+      const lignes = ['date;statut;fichier;taille_octets;remarque'].concat(fiches.map(f =&gt;
+        [f.date, f.statut, f.nom || '', f.taille || '', (f.remarque || '').replace(/[;\r\n]/g, ' ')].join(';')));
+      const contenu = fiches.filter(f =&gt; f.statut === 'ok' &amp;&amp; f.blob).map(f =&gt; ({nom: f.nom, blob: f.blob}));
+      contenu.push({nom: 'rapport_extraction.csv', blob: new Blob(['﻿' + lignes.join('\r\n') + '\r\n'], {type: 'text/csv'})});
+      const zip = await construireZip(contenu);
+      const premiers = fiches.filter(f =&gt; f.statut === 'ok');
+      const lien = document.createElement('a');
+      lien.href = natif.creerUrl.call(URL, zip);
+      lien.download = REGLAGES.prefixe + premiers[0].date + '_au_' + premiers[premiers.length - 1].date + '.zip';
+      natif.clicLien.call(lien);
+      setTimeout(() =&gt; URL.revokeObjectURL(lien.href), 120000);
+      afficher('ZIP téléchargé : ' + compte.ok + ' fichiers. Regarde dans ton dossier Téléchargements.');
+    } catch (e) {
+      afficher('Impossible de préparer le ZIP : ' + e.message);
+    } finally { ui.zip.disabled = false; }
+  }
+
+  async function toutEffacer() {
+    if (etat.enCours) { afficher('Mets d\'abord en pause.'); return; }
+    const {compte} = await bilan();
+    if (await demander('Effacer les ' + compte.ok + ' fichiers en mémoire et les éléments mémorisés ?', ['Oui, tout effacer', 'Annuler']) !== 0) return;
+    await base.vider();
+    try { localStorage.removeItem('mam-reperes'); } catch (e) { /* stockage local indisponible */ }
+    afficher('Mémoire effacée.', (await bilan()).texte);
+  }
+
+  construirePanneau();
+  window.__mam = {
+    version: VERSION, reglages: REGLAGES, journal: lignesJournal,
+    montrer() { ui.panneau.style.display = ''; },
+  };
+  bilan().then(b =&gt; afficher('Extraction Mise au mille : choisis la période puis clique sur Démarrer.', b.texte));
+})();
+</textarea>
+<script>
+  const code = document.getElementById('code').value;
+  const favori = document.getElementById('favori');
+  // Version allegee pour le favori : sans commentaires ni indentation.
+  const allege = code.replace(/^\s*\/\*[\s\S]*?\*\/\s*/, '').split('\n').map(l => l.trim())
+    .filter(l => l && !l.startsWith('//')).join('\n');
+  favori.href = 'javascript:' + encodeURIComponent(allege + '\nvoid 0;');
+  favori.addEventListener('click', e => {
+    e.preventDefault();
+    document.getElementById('infoFavori').textContent = 'Ne clique pas ici : fais-le glisser dans la barre de favoris.';
+  });
+  document.getElementById('copier').addEventListener('click', async () => {
+    const info = document.getElementById('infoCopie');
+    try {
+      await navigator.clipboard.writeText(code);
+    } catch (e) {
+      const zone = document.createElement('textarea');
+      zone.value = code;
+      document.body.appendChild(zone);
+      zone.select();
+      const fait = document.execCommand('copy');
+      zone.remove();
+      if (!fait) { info.textContent = 'Copie impossible : ouvre extraction_navigateur.js et copie tout son contenu.'; return; }
+    }
+    info.textContent = 'Script copié.';
+  });
+</script>
+</body>
+</html>
