@@ -20,6 +20,7 @@ import argparse
 import csv
 import hashlib
 import json
+import os
 import re
 import sys
 import time
@@ -576,6 +577,9 @@ def ouvrir_navigateur(p, cfg: dict):
             accept_downloads=True,
             no_viewport=True,
             args=arguments,
+            # Garde le bac a sable du navigateur actif : sans cela Playwright ajoute --no-sandbox
+            # (bandeau d'avertissement dans Edge). Seul un lancement en root sous Linux l'exige.
+            chromium_sandbox=not (hasattr(os, "geteuid") and os.geteuid() == 0),
         )
         if cfg["chemin_navigateur"]:
             options["executable_path"] = cfg["chemin_navigateur"]
