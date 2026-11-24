@@ -1,0 +1,9 @@
+# Reglages locaux (contient l'adresse interne de l'appli) et fichiers produits par le bot
+config.json
+extractions/
+profil_navigateur/
+diagnostic/
+erreurs/
+journal.log
+rapport_extraction.csv
+__pycache__/

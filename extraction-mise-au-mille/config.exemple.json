@@ -1,0 +1,8 @@
+{
+  "url": "http://ADRESSE-DE-L-APPLI/...#/miseAuMille/mise-au-mille",
+  "date_debut": "2025-07-01",
+  "dossier_sortie": "extractions",
+  "nom_fichier": "Mise_au_mille_{date}",
+  "format_date_fichier": "%Y-%m-%d",
+  "navigateur": "msedge"
+}
