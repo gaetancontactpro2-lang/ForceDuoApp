@@ -6,6 +6,11 @@ et le renomme avec la date du programme : `Mise_au_mille_2025-07-01.xlsx`, etc.
 Le bot ouvre Edge (déjà présent sur Windows), règle la date, clique sur le bouton
 d'extraction, range le fichier dans le dossier `extractions`, puis passe au jour suivant.
 
+Il est adapté aux composants DevExtreme de la page (sélecteur de date `dxDateBox`, bouton
+d'export du tableau) : la date est saisie au clavier ou, si le champ ne l'accepte pas,
+cliquée dans le calendrier, puis contrôlée sur la vraie valeur du sélecteur avant chaque
+extraction.
+
 ## Mise en route (Windows)
 
 1. **Une seule fois** : double-clic sur `1_installer.bat` (installe le module Python `playwright`).
@@ -25,8 +30,10 @@ d'extraction, range le fichier dans le dossier `extractions`, puis passe au jour
 
 - **Reprise** : les jours déjà extraits sont sautés. En cas de coupure, relance simplement
   `3_lancer_extraction.bat`.
-- **Jours sans production** : si aucun fichier n'est proposé, le jour est noté « aucun fichier »
-  et le bot continue. La liste est affichée à la fin.
+- **Jours sans production** : si le tableau du jour est vide, le bot n'extrait rien (le fichier
+  ne contiendrait que les titres de colonnes), note le jour « aucun fichier » et continue.
+  La liste de ces jours est affichée à la fin. Pour extraire quand même ces fichiers vides,
+  mets `"exporter_si_vide": true` dans `config.json`.
 - **Rapport** : `rapport_extraction.csv` (s'ouvre dans Excel) liste chaque jour traité.
 - **Sécurité** : si les premiers fichiers extraits ont tous le même contenu, le bot s'arrête
   et les met de côté dans `extractions\_suspects` : c'est le signe que la page n'a pas pris en
@@ -51,6 +58,7 @@ python extraction.py --diagnostic                           décrire la page san
 | `nom_fichier`, `format_date_fichier` | nom des fichiers, par ex. `"%d-%m-%Y"` pour `Mise_au_mille_01-07-2025` |
 | `navigateur` | `msedge`, `chrome` ou `chromium` |
 | `selecteur_valider` | bouton à cliquer après avoir changé la date, s'il y en a un |
+| `exporter_si_vide` | `true` pour extraire aussi les jours où le tableau est vide |
 | `pause_apres_date` | pause en secondes avant de cliquer sur l'extraction (à augmenter si la page est lente) |
 | `delai_sans_reponse` | secondes sans téléchargement avant de conclure « aucun fichier » |
 

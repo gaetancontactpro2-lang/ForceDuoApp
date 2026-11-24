@@ -65,6 +65,8 @@ DEFAUTS = {
     "format_date": "",
     # Touche pressee apres la saisie de la date ("" = aucune).
     "touche_validation": "Enter",
+    # Si le tableau du jour est vide : false = pas d'extraction, true = extraire quand meme.
+    "exporter_si_vide": False,
     # Pause (secondes) apres le chargement des donnees du jour.
     "pause_apres_date": 0.5,
     # Sans telechargement ni activite reseau pendant ce delai (s) : jour sans fichier.
@@ -110,6 +112,14 @@ JS_BOT = r"""
     return morceaux.join(' > ');
   }
 
+  // Selecteur par classe, complete par un rang s'il designe plusieurs elements.
+  function parRang(css, el) {
+    const tous = Array.from(document.querySelectorAll(css));
+    const i = tous.indexOf(el);
+    if (i < 0) return [];
+    return [tous.length === 1 ? css : css + ' >> nth=' + i];
+  }
+
   function texteCourt(el) {
     return (el.innerText || el.value || '').trim().replace(/\s+/g, ' ');
   }
@@ -129,6 +139,13 @@ JS_BOT = r"""
       const t = texteCourt(el);
       if (t && t.length <= 50) { sels.push(tag + ':text-is(' + q(t) + ')'); sels.push(tag + ':has-text(' + q(t) + ')'); }
     }
+    // Composants DevExtreme : selecteur de date (dxDateBox) et bouton d'export des tableaux.
+    const boiteDx = tag === 'input' && el.closest('.dx-datebox');
+    if (boiteDx) {
+      if (idStable(boiteDx.id)) sels.push('#' + CSS.escape(boiteDx.id) + ' input.dx-texteditor-input');
+      sels.push(...parRang('.dx-datebox input.dx-texteditor-input', el));
+    }
+    for (const c of el.classList) if (/export/i.test(c)) sels.push(...parRang('.' + CSS.escape(c), el));
     sels.push(chemin(el));
     if (el.id) sels.push('#' + CSS.escape(el.id));
     const attrs = ['type', 'id', 'name', 'placeholder', 'title', 'aria-label']
@@ -145,6 +162,8 @@ JS_BOT = r"""
     const type = (el.getAttribute('type') || 'text').toLowerCase();
     if (type === 'date') return 100;
     if (!/^(text|search|tel)$/.test(type)) return 0;
+    // dxDateBox : celui de la page, pas ceux des filtres d'un tableau ou d'une fenetre.
+    if (el.closest('.dx-datebox')) return el.closest('.dx-datagrid, .dx-treelist, .dx-pivotgrid, .dx-overlay-content') ? 70 : 95;
     let indices = Array.from(el.attributes).map(a => a.name + '=' + a.value).join(' ');
     for (let e = el.parentElement, i = 0; e && i < 3; e = e.parentElement, i++)
       indices += ' ' + e.tagName + ' ' + (e.getAttribute('class') || '');
@@ -195,7 +214,9 @@ JS_BOT = r"""
   function versInput(el) {
     if (el.tagName === 'INPUT') return el;
     if (el.tagName === 'LABEL' && el.control && el.control.tagName === 'INPUT') return el.control;
-    for (let e = el, i = 0; e && i < 4; e = e.parentElement, i++) {
+    const boiteDx = el.closest('.dx-datebox');
+    if (boiteDx) return boiteDx.querySelector('input.dx-texteditor-input');
+    for (let e = el, i = 0; e && i < 6; e = e.parentElement, i++) {
       const ins = Array.from(e.querySelectorAll('input')).filter(visible);
       if (ins.length === 1) return ins[0];
       if (ins.length > 1) return null;
@@ -250,6 +271,62 @@ JS_BOT = r"""
     });
   }
 
+  // ---- DevExtreme --------------------------------------------------------
+  const deuxChiffres = n => String(n).padStart(2, '0');
+
+  // Vraie valeur d'un dxDateBox (champ cache), independante du format affiche.
+  function dxValeur(el) {
+    const racine = el.closest('.dx-datebox');
+    if (!racine) return null;
+    const cache = racine.querySelector('input[type=hidden]');
+    let valeur = null;
+    if (cache && cache.value) {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(cache.value)) valeur = cache.value;
+      else {
+        const d = new Date(cache.value);
+        if (!isNaN(d)) valeur = d.getFullYear() + '-' + deuxChiffres(d.getMonth() + 1) + '-' + deuxChiffres(d.getDate());
+      }
+    }
+    return {connue: !!cache, valeur, invalide: racine.classList.contains('dx-invalid')};
+  }
+
+  // Calendrier ouvert : mois affiche, et marquage de la case du jour voulu ("AAAA/MM/JJ").
+  function dxViserJour(jour) {
+    document.querySelectorAll('[data-bot-cible]').forEach(e => e.removeAttribute('data-bot-cible'));
+    const cals = Array.from(document.querySelectorAll('.dx-overlay-wrapper .dx-calendar')).filter(visible);
+    if (!cals.length) return {ouvert: false};
+    const cal = cals[cals.length - 1];
+    const corps = cal.querySelector('.dx-calendar-body').getBoundingClientRect();
+    const aLecran = td => {
+      const r = td.getBoundingClientRect(), x = r.left + r.width / 2;
+      return r.width > 0 && x > corps.left && x < corps.right;
+    };
+    const cases = Array.from(cal.querySelectorAll('td.dx-calendar-cell:not(.dx-calendar-other-view)')).filter(aLecran);
+    const etat = {ouvert: true, vueMois: cal.classList.contains('dx-calendar-view-month'),
+                  mois: cases.length ? (cases[0].getAttribute('data-value') || '').slice(0, 7) : null};
+    const cible = cases.find(td => td.getAttribute('data-value') === jour);
+    if (cible) {
+      etat.interdit = cible.classList.contains('dx-calendar-empty-cell');
+      etat.trouve = !etat.interdit;
+      if (etat.trouve) cible.setAttribute('data-bot-cible', '1');
+    }
+    return etat;
+  }
+
+  // Tableau exporte par le bouton : en cours de chargement ? vide ?
+  function dxTableau(bouton) {
+    const GRILLES = '.dx-datagrid, .dx-treelist, .dx-pivotgrid';
+    let grille = bouton.closest(GRILLES);
+    if (!grille) {
+      const toutes = Array.from(document.querySelectorAll(GRILLES)).filter(g => visible(g) && !g.parentElement.closest(GRILLES));
+      if (toutes.length === 1) grille = toutes[0];
+    }
+    return {
+      charge: Array.from(document.querySelectorAll('.dx-loadpanel-content')).some(visible),
+      vide: !!grille && Array.from(grille.querySelectorAll('.dx-datagrid-nodata, .dx-treelist-nodata')).some(visible),
+    };
+  }
+
   // ---- inventaire pour le diagnostic ------------------------------------
   function inventaire() {
     const lignes = [];
@@ -264,7 +341,7 @@ JS_BOT = r"""
     return lignes;
   }
 
-  window.__bot = {trouverDate, trouverExport, choisir, inventaire};
+  window.__bot = {trouverDate, trouverExport, choisir, inventaire, dxValeur, dxViserJour, dxTableau};
 })();
 """
 
@@ -358,6 +435,21 @@ def detecter_format(valeur: str, placeholder: str) -> str:
         if "%d" in p and "%m" in p and ("%Y" in p or "%y" in p):
             return p
     return "%d/%m/%Y"
+
+
+def format_depuis_valeur(texte: str, vraie: date):
+    """Format de saisie deduit du texte affiche, connaissant la vraie date qu'il represente."""
+    m = re.fullmatch(r"\d{1,4}([/.\-])\d{1,2}\1\d{1,4}", (texte or "").strip())
+    if not m:
+        return None
+    for ordre in ("%d %m %Y", "%m %d %Y", "%Y %m %d", "%d %m %y", "%m %d %y"):
+        fmt = ordre.replace(" ", m[1])
+        try:
+            if datetime.strptime(texte.strip(), fmt).date() == vraie:
+                return fmt
+        except ValueError:
+            pass
+    return None
 
 
 def lire_date(valeur: str, fmt: str):
@@ -654,6 +746,8 @@ class Saisie:
         self.format = cfg["format_date"]
         self.methode = 0  # indice de la methode qui marche, memorise d'un jour a l'autre
         self.non_verifiable = False
+        self.echecs_clavier_dx = 0
+        self.mode_annonce = False
 
     def regler(self, page, reseau: Reseau, selecteur: str, jour: date) -> None:
         champ = page.locator(selecteur).first
@@ -666,6 +760,11 @@ class Saisie:
             attendre_calme(page, reseau)
             if champ.input_value() != jour.isoformat():
                 raise EchecJour(f"le champ date affiche {champ.input_value()!r}")
+            return
+
+        etat_dx = champ.evaluate("e => window.__bot.dxValeur(e)")
+        if etat_dx and etat_dx["connue"]:
+            self._regler_dx(page, reseau, champ, jour, etat_dx)
             return
 
         if not self.format:
@@ -699,6 +798,76 @@ class Saisie:
                 return
         raise EchecJour(f"date refusee par la page (le champ affiche {affiche!r} au lieu de {texte!r})")
 
+    # ---- selecteur de date DevExtreme (dxDateBox) -------------------------
+    def _regler_dx(self, page, reseau: Reseau, champ, jour: date, etat: dict) -> None:
+        """Saisie au clavier, sinon clic dans le calendrier ; controle sur la vraie valeur."""
+        if etat["valeur"] == jour.isoformat():
+            return
+        for methode in ("clavier", "calendrier"):
+            reseau.oublier()
+            try:
+                if methode == "clavier":
+                    if self.echecs_clavier_dx >= 2:
+                        continue
+                    fmt = self.format
+                    if not fmt and etat["valeur"]:
+                        fmt = format_depuis_valeur(champ.input_value(), date.fromisoformat(etat["valeur"]))
+                    if not fmt:
+                        continue  # format d'affichage non reconnu : on passe par le calendrier
+                    saisie_clavier(page, champ, jour.strftime(fmt), self.cfg)
+                else:
+                    self._calendrier_dx(page, champ, jour)
+            except ErreurPlaywright as e:
+                journal(f"  date par {methode} : {str(e).splitlines()[0]}")
+                page.keyboard.press("Escape")
+                continue
+            attendre_calme(page, reseau)
+            etat = champ.evaluate("e => window.__bot.dxValeur(e)")
+            if etat["valeur"] == jour.isoformat():
+                if not self.mode_annonce:
+                    self.mode_annonce = True
+                    log(f"  Selecteur de date DevExtreme : date reglee par {methode}, valeur controlee.")
+                return
+            journal(f"  date par {methode} : valeur obtenue {etat['valeur']!r}, texte {champ.input_value()!r}")
+            if methode == "clavier":
+                self.echecs_clavier_dx += 1
+        raise EchecJour(f"date refusee par la page (valeur du selecteur : {etat['valeur']!r})")
+
+    def _calendrier_dx(self, page, champ, jour: date) -> None:
+        vise = jour.strftime("%Y/%m/%d")
+        etat = page.evaluate("j => window.__bot.dxViserJour(j)", vise)
+        if not etat["ouvert"]:
+            bouton = champ.locator(
+                "xpath=ancestor::*[contains(concat(' ', normalize-space(@class), ' '), ' dx-datebox ')][1]"
+            ).locator(".dx-dropdowneditor-button")
+            (bouton.first if bouton.count() else champ).click(timeout=5000)
+            page.wait_for_timeout(400)
+        for _ in range(80):
+            etat = page.evaluate("j => window.__bot.dxViserJour(j)", vise)
+            if not etat["ouvert"]:
+                raise EchecJour("le calendrier du selecteur de date ne s'ouvre pas")
+            if not etat["vueMois"]:
+                raise EchecJour("le calendrier n'affiche pas les jours (selecteur de mois ?)")
+            if etat.get("interdit"):
+                raise EchecJour("date non selectionnable dans le calendrier")
+            if etat.get("trouve"):
+                break
+            if not etat["mois"]:
+                page.wait_for_timeout(200)
+                continue
+            if etat["mois"] == vise[:7]:
+                raise EchecJour("jour absent du calendrier")
+            sens = "next" if etat["mois"] < vise[:7] else "previous"
+            page.locator(f".dx-overlay-wrapper .dx-calendar:visible .dx-calendar-navigator-{sens}-view").last.click(timeout=5000)
+            page.wait_for_timeout(350)
+        else:
+            raise EchecJour("mois introuvable dans le calendrier")
+        page.locator("td[data-bot-cible]").click(timeout=5000)
+        page.wait_for_timeout(250)
+        valider = page.locator(".dx-overlay-wrapper .dx-button.dx-popup-done:visible")
+        if valider.count():
+            valider.last.click(timeout=5000)
+
 
 # --------------------------------------------------------------------------
 # Extraction d'un jour
@@ -730,6 +899,7 @@ def extraire_jour(page, cfg: dict, reseau: Reseau, evenements: Evenements, saisi
                   jour: date, cible_sans_extension: Path):
     """Renvoie (statut, fichier ou None, remarque)."""
     evenements.oublier()
+    page.evaluate(JS_BOT)
     saisie.regler(page, reseau, cfg["selecteur_date"], jour)
     if cfg["selecteur_date_2"]:
         saisie.regler(page, reseau, cfg["selecteur_date_2"], jour)
@@ -746,6 +916,18 @@ def extraire_jour(page, cfg: dict, reseau: Reseau, evenements: Evenements, saisi
         page.wait_for_timeout(2000)
         if not bouton.is_enabled():
             return "AUCUN FICHIER", None, "bouton d'extraction grise"
+
+    # Tableau DevExtreme : attendre la fin du chargement, et ne pas exporter un tableau vide.
+    debut = time.monotonic()
+    while True:
+        tableau = bouton.evaluate("e => window.__bot.dxTableau(e)")
+        if not tableau["charge"]:
+            break
+        if time.monotonic() - debut > float(cfg["attente_max"]):
+            raise EchecJour("le tableau charge toujours")
+        page.wait_for_timeout(200)
+    if tableau["vide"] and not cfg["exporter_si_vide"]:
+        return "AUCUN FICHIER", None, "tableau vide ce jour-la"
 
     evenements.oublier()
     reseau.oublier()
@@ -885,6 +1067,7 @@ def executer(args, cfg: dict) -> int:
 
                 saisie = Saisie(cfg)
                 erreurs_de_suite = 0
+                attendre_calme(page, reseau)  # laisser finir le chargement initial de la page
                 derniere_empreinte, tous_identiques = None, True
                 log("")
                 for numero, jour in enumerate(a_faire, 1):
@@ -944,8 +1127,11 @@ def executer(args, cfg: dict) -> int:
                             "semble pas tenir compte de la date que je saisis. Je les ai deplaces dans\n"
                             f"{suspects}\n"
                             "Ouvre-les pour verifier. S'ils sont normaux (jours reellement identiques),\n"
-                            "relance avec --accepter-identiques. Sinon le bot doit etre ajuste a cette\n"
-                            "page : envoie le fichier diagnostic/elements.txt.")
+                            "relance avec --accepter-identiques.\n"
+                            "S'il faut cliquer sur un bouton (Rechercher, Valider...) apres avoir change la\n"
+                            "date, relance avec --reapprendre, reponds n a la question, et montre ce bouton\n"
+                            "a l'etape 3/3. Sinon le bot doit etre ajuste a cette page : envoie le fichier\n"
+                            "diagnostic/elements.txt.")
                     if erreurs_de_suite >= ERREURS_DE_SUITE_MAX:
                         diagnostic(page, f"{erreurs_de_suite} erreurs de suite, derniere : {remarque}")
                         raise ArretBot(
@@ -954,8 +1140,10 @@ def executer(args, cfg: dict) -> int:
                             "debut, relance avec --reapprendre pour lui remontrer le champ date et le bouton.")
                     if statut == "ERREUR":
                         try:  # on repart d'une page propre
+                            reseau.oublier()
                             aller_sur_la_page(page, cfg)
                             est_visible(page, cfg["selecteur_date"], 20000)
+                            attendre_calme(page, reseau)
                         except ErreurPlaywright:
                             pass
         except KeyboardInterrupt:
